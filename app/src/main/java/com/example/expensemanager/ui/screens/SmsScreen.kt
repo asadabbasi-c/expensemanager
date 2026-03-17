@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Message
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.animation.core.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -273,10 +274,34 @@ private fun SmsPermissionContent(onRequest: () -> Unit) {
 
 @Composable
 private fun SmsLoadingContent() {
+    val infiniteTransition = rememberInfiniteTransition(label = "sms_load")
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(700), RepeatMode.Reverse),
+        label = "alpha"
+    )
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(48.dp), strokeWidth = 3.dp)
-            Text("Scanning SMS messages…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            Box(
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = alpha)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Outlined.Message, contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(36.dp))
+            }
+            Text("Scanning SMS messages…",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            @Suppress("DEPRECATION")
+            LinearProgressIndicator(
+                modifier = Modifier.width(200.dp).clip(RoundedCornerShape(4.dp)),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.primaryContainer
+            )
         }
     }
 }
@@ -316,6 +341,13 @@ fun SmsTransactionItem(transaction: ParsedSms, onAdd: () -> Unit) {
     }
     var added by remember { mutableStateOf(false) }
 
+    // Confidence colour
+    val (confidenceLabel, confidenceColor) = when {
+        transaction.confidence >= 0.85f -> "Auto-categorized" to Color(0xFF10B981)
+        transaction.confidence >= 0.6f  -> "Likely match"     to Color(0xFFF59E0B)
+        else                            -> "Unclassified"      to Color(0xFF94A3B8)
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -326,6 +358,7 @@ fun SmsTransactionItem(transaction: ParsedSms, onAdd: () -> Unit) {
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            // ── Row 1: bank chip + amount ──────────────────────────────────
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -348,6 +381,7 @@ fun SmsTransactionItem(transaction: ParsedSms, onAdd: () -> Unit) {
                 )
             }
 
+            // ── Row 2: merchant name ──────────────────────────────────────
             Text(
                 text = transaction.merchant,
                 style = MaterialTheme.typography.bodyMedium,
@@ -356,6 +390,33 @@ fun SmsTransactionItem(transaction: ParsedSms, onAdd: () -> Unit) {
                 overflow = TextOverflow.Ellipsis
             )
 
+            // ── Row 3: category badge + confidence label ──────────────────
+            if (transaction.confidence > 0f) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = confidenceColor.copy(alpha = 0.15f)
+                    ) {
+                        Text(
+                            text = transaction.suggestedCategory,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = confidenceColor,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                    Text(
+                        text = confidenceLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = confidenceColor
+                    )
+                }
+            }
+
+            // ── Row 4: raw SMS preview ────────────────────────────────────
             Text(
                 text = transaction.rawMessage,
                 style = MaterialTheme.typography.bodySmall,
@@ -376,14 +437,14 @@ fun SmsTransactionItem(transaction: ParsedSms, onAdd: () -> Unit) {
                 Box(
                     modifier = Modifier.fillMaxWidth().height(44.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer),
+                        .background(Color(0xFF10B981).copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         "✓ Added to Expenses",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        color = Color(0xFF10B981)
                     )
                 }
             } else {
@@ -393,17 +454,16 @@ fun SmsTransactionItem(transaction: ParsedSms, onAdd: () -> Unit) {
                         .height(44.dp)
                         .clip(RoundedCornerShape(10.dp))
                         .background(
-                            Brush.horizontalGradient(
-                                listOf(
-                                    MaterialTheme.colorScheme.primary,
-                                    MaterialTheme.colorScheme.tertiary
-                                )
-                            )
+                            Brush.horizontalGradient(listOf(
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.tertiary
+                            ))
                         )
                         .clickable { onAdd(); added = true },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Add to Expenses", fontWeight = FontWeight.Bold, color = Color.White, style = MaterialTheme.typography.labelLarge)
+                    Text("Add to Expenses", fontWeight = FontWeight.Bold,
+                        color = Color.White, style = MaterialTheme.typography.labelLarge)
                 }
             }
         }

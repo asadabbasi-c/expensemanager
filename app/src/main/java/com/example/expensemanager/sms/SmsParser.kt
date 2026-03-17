@@ -8,7 +8,9 @@ data class ParsedSms(
     val merchant: String,
     val bankName: String,
     val rawMessage: String,
-    val date: String
+    val date: String,
+    val suggestedCategory: String = "Other",
+    val confidence: Float = 0f   // 0.0 – 1.0
 )
 
 object SmsParser {
@@ -26,36 +28,79 @@ object SmsParser {
     )
 
     private val BANK_KEYWORDS = mapOf(
-        "HBL" to listOf("HBL", "Habib Bank"),
-        "MCB" to listOf("MCB", "Muslim Commercial"),
-        "UBL" to listOf("UBL", "United Bank"),
-        "Meezan" to listOf("Meezan", "MEBL"),
-        "Allied Bank" to listOf("Allied Bank", "ABL"),
-        "Bank Alfalah" to listOf("Bank Alfalah", "Alfalah"),
+        "HBL"               to listOf("HBL", "Habib Bank"),
+        "MCB"               to listOf("MCB", "Muslim Commercial"),
+        "UBL"               to listOf("UBL", "United Bank"),
+        "Meezan"            to listOf("Meezan", "MEBL"),
+        "Allied Bank"       to listOf("Allied Bank", "ABL"),
+        "Bank Alfalah"      to listOf("Bank Alfalah", "Alfalah"),
         "Standard Chartered" to listOf("Standard Chartered", "SCB"),
-        "Easypaisa" to listOf("Easypaisa", "Telenor Bank"),
-        "JazzCash" to listOf("JazzCash"),
-        "SBI" to listOf("SBI", "State Bank of India"),
-        "HDFC" to listOf("HDFC"),
-        "ICICI" to listOf("ICICI"),
-        "Axis" to listOf("Axis Bank"),
-        "Paytm" to listOf("Paytm"),
-        "PhonePe" to listOf("PhonePe"),
-        "GPay" to listOf("Google Pay", "GPay")
+        "Easypaisa"         to listOf("Easypaisa", "Telenor Bank"),
+        "JazzCash"          to listOf("JazzCash"),
+        "SBI"               to listOf("SBI", "State Bank of India"),
+        "HDFC"              to listOf("HDFC"),
+        "ICICI"             to listOf("ICICI"),
+        "Axis"              to listOf("Axis Bank"),
+        "Paytm"             to listOf("Paytm"),
+        "PhonePe"           to listOf("PhonePe"),
+        "GPay"              to listOf("Google Pay", "GPay")
+    )
+
+    // Keyword → category for intelligent classification
+    private val CATEGORY_KEYWORDS = mapOf(
+        "Food" to listOf(
+            "restaurant", "cafe", "coffee", "mcdonalds", "kfc", "burger", "pizza",
+            "grill", "kitchen", "bakery", "biryani", "karahi", "dine", "dining",
+            "eat", "food", "bbq", "subway", "dominos", "hardees", "wendy", "nandos",
+            "butter", "tikka", "roast", "chinese", "thai", "sushi"
+        ),
+        "Transport" to listOf(
+            "uber", "careem", "taxi", "fuel", "petrol", "pump", "transport",
+            "bus", "parking", "toll", "lyft", "indriver", "swvl",
+            "pso", "shell", "caltex", "total", "attock", "byco", "hascol"
+        ),
+        "Shopping" to listOf(
+            "store", "mart", "shop", "mall", "outlet", "amazon", "daraz",
+            "retail", "fashion", "clothes", "brand", "emporium", "hyperstar",
+            "chase up", "gul ahmed", "khaadi", "sana safinaz", "junaid jamshed"
+        ),
+        "Groceries" to listOf(
+            "grocery", "supermarket", "metro", "imtiaz", "naheed",
+            "carrefour", "vegetables", "fruits", "ration", "agha", "al fatah"
+        ),
+        "Health" to listOf(
+            "pharmacy", "medical", "hospital", "clinic", "doctor",
+            "health", "medicine", "chemist", "aga khan", "shifa", "liaquat",
+            "evercare", "lab", "diagnostic", "dawakhana", "drugstore"
+        ),
+        "Bills" to listOf(
+            "electricity", "water", "gas", "internet", "phone",
+            "bill", "utility", "mobile", "telco", "telecom",
+            "ptcl", "jazz", "zong", "ufone", "telenor", "sngpl", "ssgc", "wapda", "iesco", "k-electric"
+        ),
+        "Entertainment" to listOf(
+            "cinema", "movie", "netflix", "spotify", "game",
+            "entertainment", "concert", "nueplex", "cinepax", "voot",
+            "youtube", "prime", "disney", "hulu"
+        )
     )
 
     fun parse(smsBody: String, sender: String, timestamp: Long): ParsedSms? {
         val amount = extractAmount(smsBody) ?: return null
-        val merchant = extractMerchant(smsBody)
+        val rawMerchant = extractMerchant(smsBody)
+        val merchant = normalizeMerchant(rawMerchant)
         val bankName = extractBankName(smsBody, sender)
         val date = formatDate(timestamp)
+        val (category, confidence) = classifyCategory(merchant, smsBody)
 
         return ParsedSms(
             amount = amount,
             merchant = merchant,
             bankName = bankName,
             rawMessage = smsBody,
-            date = date
+            date = date,
+            suggestedCategory = category,
+            confidence = confidence
         )
     }
 
@@ -75,22 +120,53 @@ object SmsParser {
             val match = pattern.find(body)
             if (match != null) {
                 val merchant = match.groupValues[1].trim()
-                if (merchant.isNotBlank()) {
-                    return merchant.take(40)
-                }
+                if (merchant.isNotBlank()) return merchant.take(40)
             }
         }
         return "Unknown"
     }
 
+    fun normalizeMerchant(raw: String): String {
+        if (raw == "Unknown") return raw
+        var n = raw.trim()
+        // Remove trailing branch codes like "KFC-011", "STORE #4521", "OUTLET 001"
+        n = n.replace(Regex("""\s*[-/#]\s*\d+\w*\s*$"""), "").trim()
+        n = n.replace(Regex("""\s+\d{3,}\s*$"""), "").trim()
+        // Remove corporate suffixes
+        n = n.replace(Regex("""\s+(PVT|LTD|LLC|INC|CORP|CO|SM|SB)\.?\s*$""", RegexOption.IGNORE_CASE), "").trim()
+        // Title case
+        return n.split(Regex("""[\s]+""")).joinToString(" ") { word ->
+            word.lowercase().replaceFirstChar { it.uppercase() }
+        }.take(40)
+    }
+
+    private fun classifyCategory(merchant: String, body: String): Pair<String, Float> {
+        val searchText = "$merchant $body".lowercase()
+        var bestCategory = "Other"
+        var bestMatchCount = 0
+
+        for ((category, keywords) in CATEGORY_KEYWORDS) {
+            val matchCount = keywords.count { keyword -> searchText.contains(keyword.lowercase()) }
+            if (matchCount > bestMatchCount) {
+                bestMatchCount = matchCount
+                bestCategory = category
+            }
+        }
+
+        val confidence = when (bestMatchCount) {
+            0    -> 0f
+            1    -> 0.6f
+            2    -> 0.85f
+            else -> 0.95f
+        }
+        return Pair(bestCategory, confidence)
+    }
+
     private fun extractBankName(body: String, sender: String): String {
         val combined = "$sender $body"
         for ((bankName, keywords) in BANK_KEYWORDS) {
-            if (keywords.any { combined.contains(it, ignoreCase = true) }) {
-                return bankName
-            }
+            if (keywords.any { combined.contains(it, ignoreCase = true) }) return bankName
         }
-        // Try to extract from sender address
         return sender.take(20).uppercase()
     }
 

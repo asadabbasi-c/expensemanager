@@ -6,6 +6,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -24,15 +25,16 @@ import com.example.expensemanager.ui.screens.DashboardScreen
 import com.example.expensemanager.ui.screens.ExpenseListScreen
 import com.example.expensemanager.ui.screens.ManageCategoriesScreen
 import com.example.expensemanager.ui.screens.SmsScreen
+import com.example.expensemanager.ui.screens.VoiceExpenseScreen
 import com.example.expensemanager.viewmodel.DashboardViewModel
 import com.example.expensemanager.viewmodel.ExpenseViewModel
 import com.example.expensemanager.viewmodel.SmsViewModel
 
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
-    object Expenses : Screen("expenses", "Expenses", Icons.Filled.List)
-    object Add : Screen("add", "Add", Icons.Filled.Add)
-    object Dashboard : Screen("dashboard", "Dashboard", Icons.Filled.BarChart)
-    object Sms : Screen("sms", "SMS", Icons.Filled.Sms)
+    object Expenses   : Screen("expenses",   "Expenses",   Icons.Filled.List)
+    object Add        : Screen("add",        "Add",        Icons.Filled.Add)
+    object Dashboard  : Screen("dashboard",  "Dashboard",  Icons.Filled.BarChart)
+    object Sms        : Screen("sms",        "SMS",        Icons.Filled.Sms)
     object Categories : Screen("categories", "Categories", Icons.Filled.Label)
 }
 
@@ -52,34 +54,49 @@ fun NavGraph(
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentDestination = navBackStackEntry?.destination
+    val currentRoute = navBackStackEntry?.destination?.route
+
+    // Hide FAB on the voice screen itself
+    val showFab = currentRoute != "voice"
 
     Scaffold(
         bottomBar = {
             NavigationBar(tonalElevation = 4.dp) {
                 bottomNavItems.forEach { screen ->
                     NavigationBarItem(
-                        icon = { Icon(screen.icon, contentDescription = screen.label) },
+                        icon  = { Icon(screen.icon, contentDescription = screen.label) },
                         label = { Text(screen.label) },
-                        selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                        selected = navBackStackEntry?.destination
+                            ?.hierarchy?.any { it.route == screen.route } == true,
                         onClick = {
                             navController.navigate(screen.route) {
                                 popUpTo(navController.graph.findStartDestination().id) {
                                     saveState = true
                                 }
                                 launchSingleTop = true
-                                restoreState = true
+                                restoreState    = true
                             }
                         }
                     )
                 }
             }
+        },
+        floatingActionButton = {
+            if (showFab) {
+                FloatingActionButton(
+                    onClick = { navController.navigate("voice") },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor   = MaterialTheme.colorScheme.onPrimary
+                ) {
+                    Icon(Icons.Filled.Mic, contentDescription = "Voice Expense")
+                }
+            }
         }
     ) { innerPadding ->
         NavHost(
-            navController = navController,
+            navController    = navController,
             startDestination = Screen.Expenses.route,
-            modifier = Modifier.padding(innerPadding)
+            modifier         = Modifier.padding(innerPadding)
         ) {
             composable(Screen.Expenses.route) {
                 ExpenseListScreen(viewModel = expenseViewModel)
@@ -87,7 +104,7 @@ fun NavGraph(
             composable(Screen.Add.route) {
                 AddExpenseScreen(
                     viewModel = expenseViewModel,
-                    onSaved = {
+                    onSaved   = {
                         navController.navigate(Screen.Expenses.route) {
                             popUpTo(Screen.Expenses.route) { inclusive = true }
                         }
@@ -99,12 +116,23 @@ fun NavGraph(
             }
             composable(Screen.Sms.route) {
                 SmsScreen(
-                    viewModel = smsViewModel,
+                    viewModel        = smsViewModel,
                     expenseViewModel = expenseViewModel
                 )
             }
             composable(Screen.Categories.route) {
                 ManageCategoriesScreen(viewModel = expenseViewModel)
+            }
+            composable("voice") {
+                VoiceExpenseScreen(
+                    expenseViewModel = expenseViewModel,
+                    onSaved  = {
+                        navController.navigate(Screen.Expenses.route) {
+                            popUpTo(Screen.Expenses.route) { inclusive = true }
+                        }
+                    },
+                    onBack   = { navController.popBackStack() }
+                )
             }
         }
     }
