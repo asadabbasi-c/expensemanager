@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Expense Manager</string>
+    <string name="expenses">Expenses</string>
+    <string name="add_expense">Add Expense</string>
+    <string name="dashboard">Dashboard</string>
+    <string name="sms">SMS</string>
+    <string name="amount">Amount</string>
+    <string name="category">Category</string>
+    <string name="description">Description</string>
+    <string name="location">Location</string>
+    <string name="date">Date</string>
+    <string name="time">Time</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+    <string name="no_expenses">No expenses yet. Tap + to add one.</string>
+    <string name="total_spending">Total Spending</string>
+    <string name="this_month">This Month</string>
+    <string name="by_category">By Category</string>
+    <string name="monthly_trends">Monthly Trends</string>
+    <string name="sms_transactions">SMS Transactions</string>
+    <string name="add_to_expenses">Add to Expenses</string>
+    <string name="no_sms">No bank SMS transactions found.</string>
+    <string name="permission_required">SMS permission required to read transactions.</string>
+    <string name="grant_permission">Grant Permission</string>
+</resources>
