@@ -27,12 +27,14 @@ import com.example.expensemanager.ui.screens.ExportImportScreen
 import com.example.expensemanager.ui.screens.ExpenseListScreen
 import com.example.expensemanager.ui.screens.GoalSettingScreen
 import com.example.expensemanager.ui.screens.ManageCategoriesScreen
+import com.example.expensemanager.ui.screens.ReceiptScanScreen
 import com.example.expensemanager.ui.screens.SmsScreen
 import com.example.expensemanager.ui.screens.VoiceExpenseScreen
 import com.example.expensemanager.viewmodel.DashboardViewModel
 import com.example.expensemanager.viewmodel.ExportImportViewModel
 import com.example.expensemanager.viewmodel.ExpenseViewModel
 import com.example.expensemanager.viewmodel.GoalViewModel
+import com.example.expensemanager.viewmodel.ReceiptViewModel
 import com.example.expensemanager.viewmodel.SmsViewModel
 
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
@@ -59,14 +61,15 @@ fun NavGraph(
     dashboardViewModel   : DashboardViewModel,
     smsViewModel         : SmsViewModel,
     exportImportViewModel: ExportImportViewModel,
-    goalViewModel        : GoalViewModel
+    goalViewModel        : GoalViewModel,
+    receiptViewModel     : ReceiptViewModel
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    // Hide FAB on voice and goal screens
-    val showFab = currentRoute != "voice" && currentRoute != "goals"
+    // Hide FAB on voice, goal, and receipt screens
+    val showFab = currentRoute != "voice" && currentRoute != "goals" && currentRoute != "receipt"
 
     Scaffold(
         bottomBar = {
@@ -112,12 +115,13 @@ fun NavGraph(
             }
             composable(Screen.Add.route) {
                 AddExpenseScreen(
-                    viewModel = expenseViewModel,
-                    onSaved   = {
+                    viewModel     = expenseViewModel,
+                    onSaved       = {
                         navController.navigate(Screen.Expenses.route) {
                             popUpTo(Screen.Expenses.route) { inclusive = true }
                         }
-                    }
+                    },
+                    onScanReceipt = { navController.navigate("receipt") }
                 )
             }
             composable(Screen.Dashboard.route) {
@@ -153,6 +157,18 @@ fun NavGraph(
                 GoalSettingScreen(
                     viewModel = goalViewModel,
                     onBack    = { navController.popBackStack() }
+                )
+            }
+            composable("receipt") {
+                ReceiptScanScreen(
+                    receiptViewModel = receiptViewModel,
+                    expenseViewModel = expenseViewModel,
+                    onSaved = {
+                        navController.navigate(Screen.Expenses.route) {
+                            popUpTo(Screen.Expenses.route) { inclusive = true }
+                        }
+                    },
+                    onBack  = { navController.popBackStack() }
                 )
             }
         }

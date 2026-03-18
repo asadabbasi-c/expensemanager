@@ -316,6 +316,32 @@ fun ExpenseItem(expense: Expense, category: Category?, onDeleteClick: () -> Unit
                                 )
                             }
                         }
+                        if (expense.source == "receipt") {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color(0xFF6366F1).copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    text = "📷 Receipt",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFF6366F1),
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        if (expense.source == "voice") {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color(0xFF10B981).copy(alpha = 0.12f)
+                            ) {
+                                Text(
+                                    text = "🎙 Voice",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFF10B981),
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
                     }
                 }
 

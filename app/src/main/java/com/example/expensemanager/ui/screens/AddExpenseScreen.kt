@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.*
@@ -31,7 +32,11 @@ import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
+fun AddExpenseScreen(
+    viewModel: ExpenseViewModel,
+    onSaved: () -> Unit,
+    onScanReceipt: () -> Unit = {}
+) {
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
@@ -94,6 +99,24 @@ fun AddExpenseScreen(viewModel: ExpenseViewModel, onSaved: () -> Unit) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+
+            // ── Scan Receipt shortcut ─────────────────────────────────────────
+            OutlinedButton(
+                onClick  = onScanReceipt,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape  = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Icon(Icons.Filled.CameraAlt,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Scan Receipt", fontWeight = FontWeight.SemiBold)
+            }
 
             // ── Amount card ───────────────────────────────────────────────────
             Card(

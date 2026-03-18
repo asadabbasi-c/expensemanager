@@ -15,6 +15,7 @@ import com.example.expensemanager.viewmodel.DashboardViewModel
 import com.example.expensemanager.viewmodel.ExportImportViewModel
 import com.example.expensemanager.viewmodel.ExpenseViewModel
 import com.example.expensemanager.viewmodel.GoalViewModel
+import com.example.expensemanager.viewmodel.ReceiptViewModel
 import com.example.expensemanager.viewmodel.SmsViewModel
 
 class MainActivity : ComponentActivity() {
@@ -44,13 +45,17 @@ class MainActivity : ComponentActivity() {
                     val goalViewModel: GoalViewModel = viewModel(
                         factory = GoalViewModel.Factory(app.repository)
                     )
+                    val receiptViewModel: ReceiptViewModel = viewModel(
+                        factory = ReceiptViewModel.Factory(app.repository)
+                    )
 
                     NavGraph(
                         expenseViewModel      = expenseViewModel,
                         dashboardViewModel    = dashboardViewModel,
                         smsViewModel          = smsViewModel,
                         exportImportViewModel = exportImportViewModel,
-                        goalViewModel         = goalViewModel
+                        goalViewModel         = goalViewModel,
+                        receiptViewModel      = receiptViewModel
                     )
                 }
             }

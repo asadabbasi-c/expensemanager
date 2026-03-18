@@ -16,8 +16,10 @@ data class Expense(
     val address: String = "",
     val date: String = "",
     val time: String = "",
-    val source: String = "manual", // "manual" or "sms"
+    val source: String = "manual",  // "manual", "sms", "voice", "receipt"
     @ColumnInfo(name = "bank_name")
     val bankName: String? = null,
-    val merchant: String? = null
+    val merchant: String? = null,
+    @ColumnInfo(name = "image_path")
+    val imagePath: String? = null   // absolute path to saved receipt photo
 )

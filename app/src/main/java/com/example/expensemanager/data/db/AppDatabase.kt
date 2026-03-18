@@ -11,7 +11,7 @@ import com.example.expensemanager.data.model.SavingGoal
 
 @Database(
     entities = [Expense::class, Category::class, Income::class, SavingGoal::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
