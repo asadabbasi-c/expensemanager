@@ -12,6 +12,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.expensemanager.ui.navigation.NavGraph
 import com.example.expensemanager.ui.theme.ExpenseManagerTheme
 import com.example.expensemanager.viewmodel.DashboardViewModel
+import com.example.expensemanager.viewmodel.ExportImportViewModel
 import com.example.expensemanager.viewmodel.ExpenseViewModel
 import com.example.expensemanager.viewmodel.SmsViewModel
 
@@ -36,11 +37,15 @@ class MainActivity : ComponentActivity() {
                     val smsViewModel: SmsViewModel = viewModel(
                         factory = SmsViewModel.Factory(app.repository)
                     )
+                    val exportImportViewModel: ExportImportViewModel = viewModel(
+                        factory = ExportImportViewModel.Factory(app.repository)
+                    )
 
                     NavGraph(
-                        expenseViewModel = expenseViewModel,
-                        dashboardViewModel = dashboardViewModel,
-                        smsViewModel = smsViewModel
+                        expenseViewModel     = expenseViewModel,
+                        dashboardViewModel   = dashboardViewModel,
+                        smsViewModel         = smsViewModel,
+                        exportImportViewModel = exportImportViewModel
                     )
                 }
             }

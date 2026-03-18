@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Mic
@@ -22,11 +23,13 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.expensemanager.ui.screens.AddExpenseScreen
 import com.example.expensemanager.ui.screens.DashboardScreen
+import com.example.expensemanager.ui.screens.ExportImportScreen
 import com.example.expensemanager.ui.screens.ExpenseListScreen
 import com.example.expensemanager.ui.screens.ManageCategoriesScreen
 import com.example.expensemanager.ui.screens.SmsScreen
 import com.example.expensemanager.ui.screens.VoiceExpenseScreen
 import com.example.expensemanager.viewmodel.DashboardViewModel
+import com.example.expensemanager.viewmodel.ExportImportViewModel
 import com.example.expensemanager.viewmodel.ExpenseViewModel
 import com.example.expensemanager.viewmodel.SmsViewModel
 
@@ -36,6 +39,7 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
     object Dashboard  : Screen("dashboard",  "Dashboard",  Icons.Filled.BarChart)
     object Sms        : Screen("sms",        "SMS",        Icons.Filled.Sms)
     object Categories : Screen("categories", "Categories", Icons.Filled.Label)
+    object Files      : Screen("files",      "Files",      Icons.Filled.FolderOpen)
 }
 
 val bottomNavItems = listOf(
@@ -43,14 +47,16 @@ val bottomNavItems = listOf(
     Screen.Add,
     Screen.Dashboard,
     Screen.Sms,
-    Screen.Categories
+    Screen.Categories,
+    Screen.Files
 )
 
 @Composable
 fun NavGraph(
     expenseViewModel: ExpenseViewModel,
     dashboardViewModel: DashboardViewModel,
-    smsViewModel: SmsViewModel
+    smsViewModel: SmsViewModel,
+    exportImportViewModel: ExportImportViewModel
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -122,6 +128,9 @@ fun NavGraph(
             }
             composable(Screen.Categories.route) {
                 ManageCategoriesScreen(viewModel = expenseViewModel)
+            }
+            composable(Screen.Files.route) {
+                ExportImportScreen(viewModel = exportImportViewModel)
             }
             composable("voice") {
                 VoiceExpenseScreen(
