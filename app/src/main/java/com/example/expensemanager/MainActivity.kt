@@ -14,6 +14,7 @@ import com.example.expensemanager.ui.theme.ExpenseManagerTheme
 import com.example.expensemanager.viewmodel.DashboardViewModel
 import com.example.expensemanager.viewmodel.ExportImportViewModel
 import com.example.expensemanager.viewmodel.ExpenseViewModel
+import com.example.expensemanager.viewmodel.GoalViewModel
 import com.example.expensemanager.viewmodel.SmsViewModel
 
 class MainActivity : ComponentActivity() {
@@ -24,7 +25,7 @@ class MainActivity : ComponentActivity() {
             ExpenseManagerTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    color    = MaterialTheme.colorScheme.background
                 ) {
                     val app = application as ExpenseApplication
 
@@ -40,12 +41,16 @@ class MainActivity : ComponentActivity() {
                     val exportImportViewModel: ExportImportViewModel = viewModel(
                         factory = ExportImportViewModel.Factory(app.repository)
                     )
+                    val goalViewModel: GoalViewModel = viewModel(
+                        factory = GoalViewModel.Factory(app.repository)
+                    )
 
                     NavGraph(
-                        expenseViewModel     = expenseViewModel,
-                        dashboardViewModel   = dashboardViewModel,
-                        smsViewModel         = smsViewModel,
-                        exportImportViewModel = exportImportViewModel
+                        expenseViewModel      = expenseViewModel,
+                        dashboardViewModel    = dashboardViewModel,
+                        smsViewModel          = smsViewModel,
+                        exportImportViewModel = exportImportViewModel,
+                        goalViewModel         = goalViewModel
                     )
                 }
             }

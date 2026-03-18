@@ -25,12 +25,14 @@ import com.example.expensemanager.ui.screens.AddExpenseScreen
 import com.example.expensemanager.ui.screens.DashboardScreen
 import com.example.expensemanager.ui.screens.ExportImportScreen
 import com.example.expensemanager.ui.screens.ExpenseListScreen
+import com.example.expensemanager.ui.screens.GoalSettingScreen
 import com.example.expensemanager.ui.screens.ManageCategoriesScreen
 import com.example.expensemanager.ui.screens.SmsScreen
 import com.example.expensemanager.ui.screens.VoiceExpenseScreen
 import com.example.expensemanager.viewmodel.DashboardViewModel
 import com.example.expensemanager.viewmodel.ExportImportViewModel
 import com.example.expensemanager.viewmodel.ExpenseViewModel
+import com.example.expensemanager.viewmodel.GoalViewModel
 import com.example.expensemanager.viewmodel.SmsViewModel
 
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
@@ -53,28 +55,29 @@ val bottomNavItems = listOf(
 
 @Composable
 fun NavGraph(
-    expenseViewModel: ExpenseViewModel,
-    dashboardViewModel: DashboardViewModel,
-    smsViewModel: SmsViewModel,
-    exportImportViewModel: ExportImportViewModel
+    expenseViewModel     : ExpenseViewModel,
+    dashboardViewModel   : DashboardViewModel,
+    smsViewModel         : SmsViewModel,
+    exportImportViewModel: ExportImportViewModel,
+    goalViewModel        : GoalViewModel
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    // Hide FAB on the voice screen itself
-    val showFab = currentRoute != "voice"
+    // Hide FAB on voice and goal screens
+    val showFab = currentRoute != "voice" && currentRoute != "goals"
 
     Scaffold(
         bottomBar = {
             NavigationBar(tonalElevation = 4.dp) {
                 bottomNavItems.forEach { screen ->
                     NavigationBarItem(
-                        icon  = { Icon(screen.icon, contentDescription = screen.label) },
-                        label = { Text(screen.label) },
+                        icon     = { Icon(screen.icon, contentDescription = screen.label) },
+                        label    = { Text(screen.label) },
                         selected = navBackStackEntry?.destination
                             ?.hierarchy?.any { it.route == screen.route } == true,
-                        onClick = {
+                        onClick  = {
                             navController.navigate(screen.route) {
                                 popUpTo(navController.graph.findStartDestination().id) {
                                     saveState = true
@@ -90,7 +93,7 @@ fun NavGraph(
         floatingActionButton = {
             if (showFab) {
                 FloatingActionButton(
-                    onClick = { navController.navigate("voice") },
+                    onClick        = { navController.navigate("voice") },
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor   = MaterialTheme.colorScheme.onPrimary
                 ) {
@@ -118,7 +121,10 @@ fun NavGraph(
                 )
             }
             composable(Screen.Dashboard.route) {
-                DashboardScreen(viewModel = dashboardViewModel)
+                DashboardScreen(
+                    viewModel         = dashboardViewModel,
+                    onNavigateToGoals = { navController.navigate("goals") }
+                )
             }
             composable(Screen.Sms.route) {
                 SmsScreen(
@@ -135,12 +141,18 @@ fun NavGraph(
             composable("voice") {
                 VoiceExpenseScreen(
                     expenseViewModel = expenseViewModel,
-                    onSaved  = {
+                    onSaved = {
                         navController.navigate(Screen.Expenses.route) {
                             popUpTo(Screen.Expenses.route) { inclusive = true }
                         }
                     },
-                    onBack   = { navController.popBackStack() }
+                    onBack  = { navController.popBackStack() }
+                )
+            }
+            composable("goals") {
+                GoalSettingScreen(
+                    viewModel = goalViewModel,
+                    onBack    = { navController.popBackStack() }
                 )
             }
         }

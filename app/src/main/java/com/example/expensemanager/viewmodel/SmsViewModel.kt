@@ -3,14 +3,15 @@ package com.example.expensemanager.viewmodel
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
-import android.provider.Telephony
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.expensemanager.data.model.Expense
+import com.example.expensemanager.data.model.Income
 import com.example.expensemanager.data.repository.ExpenseRepository
 import com.example.expensemanager.sms.ParsedSms
 import com.example.expensemanager.sms.SmsParser
+import com.example.expensemanager.sms.TransactionType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,6 +37,10 @@ class SmsViewModel(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
+    // Number of CREDIT transactions silently auto-added this session
+    private val _autoAddedCount = MutableStateFlow(0)
+    val autoAddedCount: StateFlow<Int> = _autoAddedCount.asStateFlow()
+
     fun setPermissionGranted(granted: Boolean) {
         _hasPermission.value = granted
     }
@@ -44,11 +49,45 @@ class SmsViewModel(
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
+            _autoAddedCount.value = 0
             try {
-                val transactions = withContext(Dispatchers.IO) {
+                val allParsed = withContext(Dispatchers.IO) {
                     readBankSms(context.contentResolver)
                 }
-                _parsedTransactions.value = transactions
+
+                // Separate CREDIT from DEBIT/UNKNOWN
+                val credits = allParsed.filter { it.transactionType == TransactionType.CREDIT }
+                val debits  = allParsed.filter { it.transactionType != TransactionType.CREDIT }
+
+                // Auto-add credits to income (with dedup)
+                withContext(Dispatchers.IO) {
+                    val dateSdf  = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                    val timeSdf  = SimpleDateFormat("HH:mm", Locale.getDefault())
+                    val monthSdf = SimpleDateFormat("yyyy-MM", Locale.getDefault())
+                    var added = 0
+                    credits.forEach { sms ->
+                        val hash = sms.rawMessage.hashCode().toString()
+                        if (!repository.incomeExistsForHash(hash)) {
+                            val dateStr  = sms.date
+                            val monthStr = dateStr.substring(0, 7)
+                            repository.insertIncome(
+                                Income(
+                                    amount      = sms.amount,
+                                    description = "SMS: ${sms.bankName}",
+                                    date        = dateStr,
+                                    time        = timeSdf.format(Date()),
+                                    source      = "sms",
+                                    month       = monthStr,
+                                    smsHash     = hash
+                                )
+                            )
+                            added++
+                        }
+                    }
+                    _autoAddedCount.value = added
+                }
+
+                _parsedTransactions.value = debits
             } catch (e: SecurityException) {
                 _errorMessage.value = "SMS permission denied. Please grant READ_SMS permission."
             } catch (e: Throwable) {
@@ -67,31 +106,23 @@ class SmsViewModel(
             val projection = arrayOf("_id", "address", "body", "date")
             val sortOrder = "date DESC"
 
-            val cursor = contentResolver.query(
-                uri,
-                projection,
-                null,
-                null,
-                sortOrder
-            )
+            val cursor = contentResolver.query(uri, projection, null, null, sortOrder)
 
             cursor?.use {
                 val addressIndex = it.getColumnIndexOrThrow("address")
-                val bodyIndex = it.getColumnIndexOrThrow("body")
-                val dateIndex = it.getColumnIndexOrThrow("date")
+                val bodyIndex    = it.getColumnIndexOrThrow("body")
+                val dateIndex    = it.getColumnIndexOrThrow("date")
 
                 var count = 0
                 while (it.moveToNext() && count < 500 && results.size < 50) {
                     try {
-                        val address = it.getString(addressIndex) ?: ""
-                        val body = it.getString(bodyIndex) ?: ""
+                        val address   = it.getString(addressIndex) ?: ""
+                        val body      = it.getString(bodyIndex) ?: ""
                         val timestamp = it.getLong(dateIndex)
 
                         if (SmsParser.isBankSms(address, body)) {
                             val parsed = SmsParser.parse(body, address, timestamp)
-                            if (parsed != null) {
-                                results.add(parsed)
-                            }
+                            if (parsed != null) results.add(parsed)
                         }
                     } catch (_: Exception) { /* skip malformed row */ }
                     count++
@@ -108,20 +139,18 @@ class SmsViewModel(
         viewModelScope.launch {
             val timeSdf = SimpleDateFormat("HH:mm", Locale.getDefault())
             val expense = Expense(
-                amount = parsed.amount,
-                categoryId = categoryId,
+                amount      = parsed.amount,
+                categoryId  = categoryId,
                 description = "SMS: ${parsed.merchant}",
-                location = "",
-                address = "",
-                date = parsed.date,
-                time = timeSdf.format(Date()),
-                source = "sms",
-                bankName = parsed.bankName,
-                merchant = parsed.merchant
+                location    = "",
+                address     = "",
+                date        = parsed.date,
+                time        = timeSdf.format(Date()),
+                source      = "sms",
+                bankName    = parsed.bankName,
+                merchant    = parsed.merchant
             )
             repository.insertExpense(expense)
-
-            // Remove from the list once added
             _parsedTransactions.value = _parsedTransactions.value.filter { it != parsed }
         }
     }

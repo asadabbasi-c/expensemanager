@@ -6,16 +6,20 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.example.expensemanager.data.model.Category
 import com.example.expensemanager.data.model.Expense
+import com.example.expensemanager.data.model.Income
+import com.example.expensemanager.data.model.SavingGoal
 
 @Database(
-    entities = [Expense::class, Category::class],
-    version = 1,
+    entities = [Expense::class, Category::class, Income::class, SavingGoal::class],
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun expenseDao(): ExpenseDao
     abstract fun categoryDao(): CategoryDao
+    abstract fun incomeDao(): IncomeDao
+    abstract fun savingGoalDao(): SavingGoalDao
 
     companion object {
         @Volatile

@@ -3,6 +3,8 @@ package com.example.expensemanager.sms
 import java.text.SimpleDateFormat
 import java.util.*
 
+enum class TransactionType { DEBIT, CREDIT, UNKNOWN }
+
 data class ParsedSms(
     val amount: Double,
     val merchant: String,
@@ -10,7 +12,8 @@ data class ParsedSms(
     val rawMessage: String,
     val date: String,
     val suggestedCategory: String = "Other",
-    val confidence: Float = 0f   // 0.0 – 1.0
+    val confidence: Float = 0f,          // 0.0 – 1.0
+    val transactionType: TransactionType = TransactionType.UNKNOWN
 )
 
 object SmsParser {
@@ -28,25 +31,24 @@ object SmsParser {
     )
 
     private val BANK_KEYWORDS = mapOf(
-        "HBL"               to listOf("HBL", "Habib Bank"),
-        "MCB"               to listOf("MCB", "Muslim Commercial"),
-        "UBL"               to listOf("UBL", "United Bank"),
-        "Meezan"            to listOf("Meezan", "MEBL"),
-        "Allied Bank"       to listOf("Allied Bank", "ABL"),
-        "Bank Alfalah"      to listOf("Bank Alfalah", "Alfalah"),
+        "HBL"                to listOf("HBL", "Habib Bank"),
+        "MCB"                to listOf("MCB", "Muslim Commercial"),
+        "UBL"                to listOf("UBL", "United Bank"),
+        "Meezan"             to listOf("Meezan", "MEBL"),
+        "Allied Bank"        to listOf("Allied Bank", "ABL"),
+        "Bank Alfalah"       to listOf("Bank Alfalah", "Alfalah"),
         "Standard Chartered" to listOf("Standard Chartered", "SCB"),
-        "Easypaisa"         to listOf("Easypaisa", "Telenor Bank"),
-        "JazzCash"          to listOf("JazzCash"),
-        "SBI"               to listOf("SBI", "State Bank of India"),
-        "HDFC"              to listOf("HDFC"),
-        "ICICI"             to listOf("ICICI"),
-        "Axis"              to listOf("Axis Bank"),
-        "Paytm"             to listOf("Paytm"),
-        "PhonePe"           to listOf("PhonePe"),
-        "GPay"              to listOf("Google Pay", "GPay")
+        "Easypaisa"          to listOf("Easypaisa", "Telenor Bank"),
+        "JazzCash"           to listOf("JazzCash"),
+        "SBI"                to listOf("SBI", "State Bank of India"),
+        "HDFC"               to listOf("HDFC"),
+        "ICICI"              to listOf("ICICI"),
+        "Axis"               to listOf("Axis Bank"),
+        "Paytm"              to listOf("Paytm"),
+        "PhonePe"            to listOf("PhonePe"),
+        "GPay"               to listOf("Google Pay", "GPay")
     )
 
-    // Keyword → category for intelligent classification
     private val CATEGORY_KEYWORDS = mapOf(
         "Food" to listOf(
             "restaurant", "cafe", "coffee", "mcdonalds", "kfc", "burger", "pizza",
@@ -85,6 +87,17 @@ object SmsParser {
         )
     )
 
+    private val CREDIT_KEYWORDS = listOf(
+        "credited", "credit", "received", "deposited", "inward", "refund",
+        "reversal", "cashback", "cash back", "salary", "payment received",
+        "amount received", "funds received", "transferred to you"
+    )
+
+    private val DEBIT_KEYWORDS = listOf(
+        "debited", "debit", "spent", "charged", "payment", "withdrawal",
+        "deducted", "paid", "purchase", "pos transaction", "sent", "transferred"
+    )
+
     fun parse(smsBody: String, sender: String, timestamp: Long): ParsedSms? {
         val amount = extractAmount(smsBody) ?: return null
         val rawMerchant = extractMerchant(smsBody)
@@ -92,16 +105,31 @@ object SmsParser {
         val bankName = extractBankName(smsBody, sender)
         val date = formatDate(timestamp)
         val (category, confidence) = classifyCategory(merchant, smsBody)
+        val transactionType = detectTransactionType(smsBody)
 
         return ParsedSms(
-            amount = amount,
-            merchant = merchant,
-            bankName = bankName,
-            rawMessage = smsBody,
-            date = date,
+            amount          = amount,
+            merchant        = merchant,
+            bankName        = bankName,
+            rawMessage      = smsBody,
+            date            = date,
             suggestedCategory = category,
-            confidence = confidence
+            confidence      = confidence,
+            transactionType = transactionType
         )
+    }
+
+    fun detectTransactionType(body: String): TransactionType {
+        val lower = body.lowercase()
+        val creditScore = CREDIT_KEYWORDS.count { lower.contains(it) }
+        val debitScore  = DEBIT_KEYWORDS.count  { lower.contains(it) }
+        return when {
+            creditScore > debitScore -> TransactionType.CREDIT
+            debitScore  > creditScore -> TransactionType.DEBIT
+            creditScore > 0          -> TransactionType.CREDIT
+            debitScore  > 0          -> TransactionType.DEBIT
+            else                     -> TransactionType.UNKNOWN
+        }
     }
 
     private fun extractAmount(body: String): Double? {
@@ -129,12 +157,9 @@ object SmsParser {
     fun normalizeMerchant(raw: String): String {
         if (raw == "Unknown") return raw
         var n = raw.trim()
-        // Remove trailing branch codes like "KFC-011", "STORE #4521", "OUTLET 001"
         n = n.replace(Regex("""\s*[-/#]\s*\d+\w*\s*$"""), "").trim()
         n = n.replace(Regex("""\s+\d{3,}\s*$"""), "").trim()
-        // Remove corporate suffixes
         n = n.replace(Regex("""\s+(PVT|LTD|LLC|INC|CORP|CO|SM|SB)\.?\s*$""", RegexOption.IGNORE_CASE), "").trim()
-        // Title case
         return n.split(Regex("""[\s]+""")).joinToString(" ") { word ->
             word.lowercase().replaceFirstChar { it.uppercase() }
         }.take(40)
