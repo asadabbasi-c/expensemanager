@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android 11 and below (fullBackupContent).
+    Explicitly include the Room database files and receipt photos.
+    Exclude Room's temp WAL/SHM so the backup uses a clean checkpoint.
+-->
+<full-backup-content>
+    <include domain="database" path="expense_manager_database" />
+    <include domain="file"     path="receipts" />
+    <exclude domain="database" path="expense_manager_database-wal" />
+    <exclude domain="database" path="expense_manager_database-shm" />
+    <exclude domain="cache"    path="." />
+</full-backup-content>

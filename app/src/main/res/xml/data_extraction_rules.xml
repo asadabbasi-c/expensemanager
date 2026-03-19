@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android 12+ (dataExtractionRules).
+    cloud-backup  → Google Drive Auto Backup (restores on reinstall / new device).
+    device-transfer → used when migrating to a new phone via cable/QR.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="database" path="expense_manager_database" />
+        <include domain="file"     path="receipts" />
+        <exclude domain="database" path="expense_manager_database-wal" />
+        <exclude domain="database" path="expense_manager_database-shm" />
+        <exclude domain="cache"    path="." />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="database" path="expense_manager_database" />
+        <include domain="file"     path="receipts" />
+        <exclude domain="database" path="expense_manager_database-wal" />
+        <exclude domain="database" path="expense_manager_database-shm" />
+        <exclude domain="cache"    path="." />
+    </device-transfer>
+</data-extraction-rules>
