@@ -57,13 +57,13 @@ class ExpenseRepository(
         val count = getCategoryCount()
         if (count == 0) {
             val defaultCategories = listOf(
-                Category(name = "Food",          icon = "🍔", color = "#FF5722"),
-                Category(name = "Transport",     icon = "🚗", color = "#2196F3"),
-                Category(name = "Shopping",      icon = "🛍️", color = "#9C27B0"),
-                Category(name = "Bills",         icon = "📄", color = "#FF9800"),
-                Category(name = "Health",        icon = "❤️", color = "#F44336"),
-                Category(name = "Entertainment", icon = "🎬", color = "#3F51B5"),
-                Category(name = "Other",         icon = "💰", color = "#607D8B")
+                Category(name = "Food",          icon = "🍔", color = "#FF6B6B"),
+                Category(name = "Transport",     icon = "🚗", color = "#60A5FA"),
+                Category(name = "Shopping",      icon = "🛍️", color = "#A78BFA"),
+                Category(name = "Bills",         icon = "📄", color = "#FBBF24"),
+                Category(name = "Health",        icon = "❤️", color = "#F472B6"),
+                Category(name = "Entertainment", icon = "🎬", color = "#22D3EE"),
+                Category(name = "Other",         icon = "💰", color = "#94A3B8")
             )
             insertCategories(defaultCategories)
         }

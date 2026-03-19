@@ -1,4 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.ExpenseManager" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- Base app theme: dark, no action bar, Compose handles all UI -->
+    <style name="Theme.ExpenseManager" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/splash_background</item>
+        <item name="android:statusBarColor">@color/splash_background</item>
+        <item name="android:navigationBarColor">@color/splash_background</item>
+    </style>
+
+    <!--
+        Splash screen theme — shown by the OS during cold start.
+        postSplashScreenTheme transitions to the main theme once
+        the app is ready. The animated icon uses the launcher icon.
+    -->
+    <style name="Theme.SmartSpend.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/splash_background</item>
+        <item name="postSplashScreenTheme">@style/Theme.ExpenseManager</item>
+    </style>
+
 </resources>
