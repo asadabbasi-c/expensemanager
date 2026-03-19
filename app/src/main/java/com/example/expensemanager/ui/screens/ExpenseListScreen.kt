@@ -20,17 +20,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.platform.LocalContext
 import com.example.expensemanager.data.model.Category
 import com.example.expensemanager.data.model.Expense
+import com.example.expensemanager.monetization.BannerAd
+import com.example.expensemanager.monetization.ProManager
 import com.example.expensemanager.viewmodel.ExpenseViewModel
 import java.text.NumberFormat
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ExpenseListScreen(viewModel: ExpenseViewModel) {
+fun ExpenseListScreen(viewModel: ExpenseViewModel, proManager: ProManager? = null) {
     val expenses   by viewModel.expenses.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
+    val isPro      by (proManager?.isPro ?: kotlinx.coroutines.flow.MutableStateFlow(false))
+        .collectAsStateWithLifecycle()
 
     val categoryMap = remember(categories) { categories.associateBy { it.id } }
 
@@ -49,7 +54,8 @@ fun ExpenseListScreen(viewModel: ExpenseViewModel) {
                     titleContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
-        }
+        },
+        bottomBar = { if (!isPro) BannerAd() }
     ) { paddingValues ->
         if (expenses.isEmpty()) {
             EmptyExpensesState(Modifier.padding(paddingValues))

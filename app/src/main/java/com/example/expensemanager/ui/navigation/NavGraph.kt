@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -21,7 +22,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.expensemanager.monetization.ProGate
+import com.example.expensemanager.monetization.ProManager
 import com.example.expensemanager.ui.screens.AddExpenseScreen
+import com.example.expensemanager.ui.screens.ProUpgradeScreen
 import com.example.expensemanager.ui.screens.DashboardScreen
 import com.example.expensemanager.ui.screens.ExportImportScreen
 import com.example.expensemanager.ui.screens.ExpenseListScreen
@@ -65,15 +69,20 @@ fun NavGraph(
     exportImportViewModel: ExportImportViewModel,
     goalViewModel        : GoalViewModel,
     receiptViewModel     : ReceiptViewModel,
-    recurringViewModel   : RecurringViewModel
+    recurringViewModel   : RecurringViewModel,
+    proManager           : ProManager
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    // Hide FAB on voice, goal, receipt, and recurring screens
-    val showFab = currentRoute != "voice" && currentRoute != "goals"
+    val isPro by proManager.isPro.collectAsStateWithLifecycle()
+
+    // Hide FAB on certain screens; also hide mic FAB for free users (voice is Pro)
+    val showFab = isPro
+        && currentRoute != "voice" && currentRoute != "goals"
         && currentRoute != "receipt" && currentRoute != "recurring"
+        && currentRoute != "upgrade"
 
     Scaffold(
         bottomBar = {
@@ -115,7 +124,7 @@ fun NavGraph(
             modifier         = Modifier.padding(innerPadding)
         ) {
             composable(Screen.Expenses.route) {
-                ExpenseListScreen(viewModel = expenseViewModel)
+                ExpenseListScreen(viewModel = expenseViewModel, proManager = proManager)
             }
             composable(Screen.Add.route) {
                 AddExpenseScreen(
@@ -136,10 +145,18 @@ fun NavGraph(
                 )
             }
             composable(Screen.Sms.route) {
-                SmsScreen(
-                    viewModel        = smsViewModel,
-                    expenseViewModel = expenseViewModel
-                )
+                ProGate(
+                    proManager  = proManager,
+                    featureName = "SMS Auto-Import",
+                    featureIcon = "📩",
+                    description = "Automatically scan your bank messages and log debit transactions — no manual entry needed.",
+                    onUpgrade   = { navController.navigate("upgrade") }
+                ) {
+                    SmsScreen(
+                        viewModel        = smsViewModel,
+                        expenseViewModel = expenseViewModel
+                    )
+                }
             }
             composable(Screen.Categories.route) {
                 ManageCategoriesScreen(viewModel = expenseViewModel)
@@ -148,20 +165,42 @@ fun NavGraph(
                 ExportImportScreen(viewModel = exportImportViewModel)
             }
             composable("voice") {
-                VoiceExpenseScreen(
-                    expenseViewModel = expenseViewModel,
-                    onSaved = {
-                        navController.navigate(Screen.Expenses.route) {
-                            popUpTo(Screen.Expenses.route) { inclusive = true }
-                        }
-                    },
-                    onBack  = { navController.popBackStack() }
-                )
+                ProGate(
+                    proManager  = proManager,
+                    featureName = "Voice Entry",
+                    featureIcon = "🎙️",
+                    description = "Just say \"Spent 500 at KFC\" and it's logged instantly — completely hands-free.",
+                    onUpgrade   = { navController.navigate("upgrade") }
+                ) {
+                    VoiceExpenseScreen(
+                        expenseViewModel = expenseViewModel,
+                        onSaved = {
+                            navController.navigate(Screen.Expenses.route) {
+                                popUpTo(Screen.Expenses.route) { inclusive = true }
+                            }
+                        },
+                        onBack  = { navController.popBackStack() }
+                    )
+                }
             }
             composable("goals") {
-                GoalSettingScreen(
-                    viewModel = goalViewModel,
-                    onBack    = { navController.popBackStack() }
+                ProGate(
+                    proManager  = proManager,
+                    featureName = "Budget & Goals",
+                    featureIcon = "🎯",
+                    description = "Set monthly saving goals, track your daily spend budget, and get warnings before you overspend.",
+                    onUpgrade   = { navController.navigate("upgrade") }
+                ) {
+                    GoalSettingScreen(
+                        viewModel = goalViewModel,
+                        onBack    = { navController.popBackStack() }
+                    )
+                }
+            }
+            composable("upgrade") {
+                ProUpgradeScreen(
+                    proManager = proManager,
+                    onBack     = { navController.popBackStack() }
                 )
             }
             composable("receipt") {

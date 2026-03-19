@@ -29,6 +29,15 @@
             </intent-filter>
         </activity>
 
+        <!--
+            AdMob App ID.
+            ⚠ This is Google's TEST app ID — replace with your real ID from
+            AdMob dashboard (Apps → App settings → App ID) before publishing.
+        -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713" />
+
         <!-- FileProvider for sharing receipt photo URIs with the camera app -->
         <provider
             android:name="androidx.core.content.FileProvider"

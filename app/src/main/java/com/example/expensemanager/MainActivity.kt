@@ -17,6 +17,7 @@ import com.example.expensemanager.viewmodel.ExportImportViewModel
 import com.example.expensemanager.viewmodel.ExpenseViewModel
 import com.example.expensemanager.viewmodel.GoalViewModel
 import com.example.expensemanager.viewmodel.ReceiptViewModel
+import com.example.expensemanager.monetization.ProManager
 import com.example.expensemanager.viewmodel.RecurringViewModel
 import com.example.expensemanager.viewmodel.SmsViewModel
 import androidx.compose.runtime.LaunchedEffect
@@ -68,7 +69,8 @@ class MainActivity : ComponentActivity() {
                         exportImportViewModel = exportImportViewModel,
                         goalViewModel         = goalViewModel,
                         receiptViewModel      = receiptViewModel,
-                        recurringViewModel    = recurringViewModel
+                        recurringViewModel    = recurringViewModel,
+                        proManager            = app.proManager
                     )
                 }
             }
