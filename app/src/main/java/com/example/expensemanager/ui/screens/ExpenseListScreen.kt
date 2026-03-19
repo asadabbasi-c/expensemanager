@@ -342,6 +342,19 @@ fun ExpenseItem(expense: Expense, category: Category?, onDeleteClick: () -> Unit
                                 )
                             }
                         }
+                        if (expense.source == "recurring") {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color(0xFF8B5CF6).copy(alpha = 0.12f)
+                            ) {
+                                Text(
+                                    text = "🔄 Recurring",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFF8B5CF6),
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
                     }
                 }
 

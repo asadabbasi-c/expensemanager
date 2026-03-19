@@ -28,6 +28,7 @@ import com.example.expensemanager.ui.screens.ExpenseListScreen
 import com.example.expensemanager.ui.screens.GoalSettingScreen
 import com.example.expensemanager.ui.screens.ManageCategoriesScreen
 import com.example.expensemanager.ui.screens.ReceiptScanScreen
+import com.example.expensemanager.ui.screens.RecurringScreen
 import com.example.expensemanager.ui.screens.SmsScreen
 import com.example.expensemanager.ui.screens.VoiceExpenseScreen
 import com.example.expensemanager.viewmodel.DashboardViewModel
@@ -35,6 +36,7 @@ import com.example.expensemanager.viewmodel.ExportImportViewModel
 import com.example.expensemanager.viewmodel.ExpenseViewModel
 import com.example.expensemanager.viewmodel.GoalViewModel
 import com.example.expensemanager.viewmodel.ReceiptViewModel
+import com.example.expensemanager.viewmodel.RecurringViewModel
 import com.example.expensemanager.viewmodel.SmsViewModel
 
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
@@ -62,14 +64,16 @@ fun NavGraph(
     smsViewModel         : SmsViewModel,
     exportImportViewModel: ExportImportViewModel,
     goalViewModel        : GoalViewModel,
-    receiptViewModel     : ReceiptViewModel
+    receiptViewModel     : ReceiptViewModel,
+    recurringViewModel   : RecurringViewModel
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    // Hide FAB on voice, goal, and receipt screens
-    val showFab = currentRoute != "voice" && currentRoute != "goals" && currentRoute != "receipt"
+    // Hide FAB on voice, goal, receipt, and recurring screens
+    val showFab = currentRoute != "voice" && currentRoute != "goals"
+        && currentRoute != "receipt" && currentRoute != "recurring"
 
     Scaffold(
         bottomBar = {
@@ -77,7 +81,7 @@ fun NavGraph(
                 bottomNavItems.forEach { screen ->
                     NavigationBarItem(
                         icon     = { Icon(screen.icon, contentDescription = screen.label) },
-                        label    = { Text(screen.label) },
+                        label    = null,
                         selected = navBackStackEntry?.destination
                             ?.hierarchy?.any { it.route == screen.route } == true,
                         onClick  = {
@@ -121,7 +125,8 @@ fun NavGraph(
                             popUpTo(Screen.Expenses.route) { inclusive = true }
                         }
                     },
-                    onScanReceipt = { navController.navigate("receipt") }
+                    onScanReceipt = { navController.navigate("receipt") },
+                    onRecurring   = { navController.navigate("recurring") }
                 )
             }
             composable(Screen.Dashboard.route) {
@@ -169,6 +174,13 @@ fun NavGraph(
                         }
                     },
                     onBack  = { navController.popBackStack() }
+                )
+            }
+            composable("recurring") {
+                RecurringScreen(
+                    recurringViewModel = recurringViewModel,
+                    expenseViewModel   = expenseViewModel,
+                    onBack             = { navController.popBackStack() }
                 )
             }
         }

@@ -11,6 +11,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.*
@@ -35,7 +36,8 @@ import java.util.*
 fun AddExpenseScreen(
     viewModel: ExpenseViewModel,
     onSaved: () -> Unit,
-    onScanReceipt: () -> Unit = {}
+    onScanReceipt: () -> Unit = {},
+    onRecurring: () -> Unit = {}
 ) {
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -100,22 +102,39 @@ fun AddExpenseScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
 
-            // ── Scan Receipt shortcut ─────────────────────────────────────────
-            OutlinedButton(
-                onClick  = onScanReceipt,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape  = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.primary
-                )
+            // ── Quick-add shortcuts ───────────────────────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(Icons.Filled.CameraAlt,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Scan Receipt", fontWeight = FontWeight.SemiBold)
+                OutlinedButton(
+                    onClick  = onScanReceipt,
+                    modifier = Modifier.weight(1f).height(52.dp),
+                    shape  = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Icon(Icons.Filled.CameraAlt,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Scan Receipt", fontWeight = FontWeight.SemiBold)
+                }
+                OutlinedButton(
+                    onClick  = onRecurring,
+                    modifier = Modifier.weight(1f).height(52.dp),
+                    shape  = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.tertiary
+                    )
+                ) {
+                    Icon(Icons.Filled.Repeat,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Recurring", fontWeight = FontWeight.SemiBold)
+                }
             }
 
             // ── Amount card ───────────────────────────────────────────────────

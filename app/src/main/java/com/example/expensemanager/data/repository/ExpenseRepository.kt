@@ -3,10 +3,12 @@ package com.example.expensemanager.data.repository
 import com.example.expensemanager.data.db.CategoryDao
 import com.example.expensemanager.data.db.ExpenseDao
 import com.example.expensemanager.data.db.IncomeDao
+import com.example.expensemanager.data.db.RecurringExpenseDao
 import com.example.expensemanager.data.db.SavingGoalDao
 import com.example.expensemanager.data.model.Category
 import com.example.expensemanager.data.model.Expense
 import com.example.expensemanager.data.model.Income
+import com.example.expensemanager.data.model.RecurringExpense
 import com.example.expensemanager.data.model.SavingGoal
 import kotlinx.coroutines.flow.Flow
 
@@ -14,7 +16,8 @@ class ExpenseRepository(
     private val expenseDao: ExpenseDao,
     private val categoryDao: CategoryDao,
     private val incomeDao: IncomeDao,
-    private val savingGoalDao: SavingGoalDao
+    private val savingGoalDao: SavingGoalDao,
+    private val recurringExpenseDao: RecurringExpenseDao
 ) {
 
     // ── Expense operations ────────────────────────────────────────────────────
@@ -93,4 +96,21 @@ class ExpenseRepository(
     suspend fun upsertGoal(goal: SavingGoal) = savingGoalDao.upsertGoal(goal)
 
     suspend fun deleteGoal(goal: SavingGoal) = savingGoalDao.deleteGoal(goal)
+
+    // ── Recurring Expense operations ──────────────────────────────────────────
+
+    fun getAllRecurring(): Flow<List<RecurringExpense>> =
+        recurringExpenseDao.getAllRecurring()
+
+    suspend fun getDueRecurring(today: String): List<RecurringExpense> =
+        recurringExpenseDao.getDueRecurring(today)
+
+    suspend fun insertRecurring(expense: RecurringExpense): Long =
+        recurringExpenseDao.insertRecurring(expense)
+
+    suspend fun updateRecurring(expense: RecurringExpense) =
+        recurringExpenseDao.updateRecurring(expense)
+
+    suspend fun deleteRecurring(expense: RecurringExpense) =
+        recurringExpenseDao.deleteRecurring(expense)
 }

@@ -12,10 +12,11 @@ class ExpenseApplication : Application() {
 
     val repository: ExpenseRepository by lazy {
         ExpenseRepository(
-            expenseDao    = database.expenseDao(),
-            categoryDao   = database.categoryDao(),
-            incomeDao     = database.incomeDao(),
-            savingGoalDao = database.savingGoalDao()
+            expenseDao           = database.expenseDao(),
+            categoryDao          = database.categoryDao(),
+            incomeDao            = database.incomeDao(),
+            savingGoalDao        = database.savingGoalDao(),
+            recurringExpenseDao  = database.recurringExpenseDao()
         )
     }
 }

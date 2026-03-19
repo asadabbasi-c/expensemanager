@@ -16,7 +16,9 @@ import com.example.expensemanager.viewmodel.ExportImportViewModel
 import com.example.expensemanager.viewmodel.ExpenseViewModel
 import com.example.expensemanager.viewmodel.GoalViewModel
 import com.example.expensemanager.viewmodel.ReceiptViewModel
+import com.example.expensemanager.viewmodel.RecurringViewModel
 import com.example.expensemanager.viewmodel.SmsViewModel
+import androidx.compose.runtime.LaunchedEffect
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,6 +50,14 @@ class MainActivity : ComponentActivity() {
                     val receiptViewModel: ReceiptViewModel = viewModel(
                         factory = ReceiptViewModel.Factory(app.repository)
                     )
+                    val recurringViewModel: RecurringViewModel = viewModel(
+                        factory = RecurringViewModel.Factory(app.repository)
+                    )
+
+                    // Auto-generate any overdue recurring expenses on every app open
+                    LaunchedEffect(Unit) {
+                        recurringViewModel.processRecurring()
+                    }
 
                     NavGraph(
                         expenseViewModel      = expenseViewModel,
@@ -55,7 +65,8 @@ class MainActivity : ComponentActivity() {
                         smsViewModel          = smsViewModel,
                         exportImportViewModel = exportImportViewModel,
                         goalViewModel         = goalViewModel,
-                        receiptViewModel      = receiptViewModel
+                        receiptViewModel      = receiptViewModel,
+                        recurringViewModel    = recurringViewModel
                     )
                 }
             }

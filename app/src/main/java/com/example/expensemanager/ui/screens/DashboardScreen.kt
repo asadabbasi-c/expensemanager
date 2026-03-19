@@ -2,14 +2,18 @@ package com.example.expensemanager.ui.screens
 
 import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.AutoMirrored
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.TrackChanges
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Warning
@@ -110,13 +114,6 @@ fun DashboardScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Dashboard", fontWeight = FontWeight.Bold) },
-                actions = {
-                    IconButton(onClick = onNavigateToGoals) {
-                        Icon(Icons.Filled.Settings,
-                            contentDescription = "Budget & Goals",
-                            tint = MaterialTheme.colorScheme.onPrimary)
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor    = MaterialTheme.colorScheme.primary,
                     titleContentColor = MaterialTheme.colorScheme.onPrimary
@@ -191,7 +188,9 @@ fun DashboardScreen(
 
             // ── Goal Status Card ──────────────────────────────────────────
             when (val status = goalStatus) {
-                is GoalStatus.NoGoal -> { /* nothing */ }
+                is GoalStatus.NoGoal -> {
+                    SetGoalCtaCard(onClick = onNavigateToGoals)
+                }
 
                 is GoalStatus.OnTrack -> {
                     GoalStatusCard(
@@ -202,7 +201,8 @@ fun DashboardScreen(
                         accentColor = emerald,
                         icon       = Icons.Filled.TrendingUp,
                         statusText = "On Track",
-                        formatter  = shortFormatter
+                        formatter  = shortFormatter,
+                        onEdit     = onNavigateToGoals
                     )
                 }
 
@@ -215,7 +215,8 @@ fun DashboardScreen(
                         accentColor = amber,
                         icon       = Icons.Filled.Warning,
                         statusText = "Near Limit",
-                        formatter  = shortFormatter
+                        formatter  = shortFormatter,
+                        onEdit     = onNavigateToGoals
                     )
                 }
 
@@ -228,7 +229,8 @@ fun DashboardScreen(
                         accentColor = rose,
                         icon       = Icons.Filled.TrendingDown,
                         statusText = "Over Budget",
-                        formatter  = shortFormatter
+                        formatter  = shortFormatter,
+                        onEdit     = onNavigateToGoals
                     )
                 }
             }
@@ -591,6 +593,51 @@ fun DashboardScreen(
 
 // ── Goal Status Card ──────────────────────────────────────────────────────────
 
+// ── Set Goal CTA (shown when no goal is configured) ───────────────────────────
+
+@Composable
+private fun SetGoalCtaCard(onClick: () -> Unit) {
+    Card(
+        modifier  = Modifier.fillMaxWidth().clickable { onClick() },
+        shape     = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(1.dp),
+        colors    = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.TrackChanges,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp))
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Set your monthly goal",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold)
+                Text("Track spending, savings & daily budget",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Icon(Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = "Set goal",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
 @Composable
 private fun GoalStatusCard(
     spent: Double,
@@ -600,7 +647,8 @@ private fun GoalStatusCard(
     accentColor: Color,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     statusText: String,
-    formatter: NumberFormat
+    formatter: NumberFormat,
+    onEdit: () -> Unit = {}
 ) {
     Card(
         modifier  = Modifier.fillMaxWidth(),
@@ -623,9 +671,23 @@ private fun GoalStatusCard(
                     Text(statusText, style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold, color = accentColor)
                 }
-                Text("${(percent * 100).toInt().coerceAtMost(999)}% used",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = accentColor)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("${(percent * 100).toInt().coerceAtMost(999)}% used",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = accentColor)
+                    IconButton(
+                        onClick   = onEdit,
+                        modifier  = Modifier.size(28.dp)
+                    ) {
+                        Icon(Icons.Filled.Edit,
+                            contentDescription = "Edit goal",
+                            tint = accentColor,
+                            modifier = Modifier.size(16.dp))
+                    }
+                }
             }
 
             Spacer(Modifier.height(12.dp))
