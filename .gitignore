@@ -13,3 +13,6 @@ build/
 .externalNativeBuild
 .cxx
 local.properties
+
+# AI assistant local context/notes - not for version control
+CONTEXT.md

@@ -15,11 +15,11 @@ import kotlinx.coroutines.flow.asStateFlow
  * no active subscription on app resume).
  *
  * Play Store product ID to create in Play Console → Monetize → Subscriptions:
- *   smartspend_pro_monthly
+ *   walletly_pro_monthly
  */
 class ProManager(context: Context) {
 
-    private val prefs = context.getSharedPreferences("smartspend_entitlement", Context.MODE_PRIVATE)
+    private val prefs = context.getSharedPreferences("walletly_entitlement", Context.MODE_PRIVATE)
 
     private val _isPro = MutableStateFlow(prefs.getBoolean(KEY_IS_PRO, false))
     val isPro: StateFlow<Boolean> = _isPro.asStateFlow()

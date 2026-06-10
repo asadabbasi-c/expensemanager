@@ -13,5 +13,6 @@ data class Income(
     val time: String = "",
     val source: String = "manual",   // "manual" or "sms"
     val month: String = "",          // yyyy-MM
-    @ColumnInfo(name = "sms_hash") val smsHash: String? = null
+    @ColumnInfo(name = "sms_hash") val smsHash: String? = null,
+    val recurring: Boolean = false
 )

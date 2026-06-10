@@ -1,11 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.READ_SMS" />
-    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <!--
+        CAMERA: used to photograph receipts for on-device OCR parsing.
+        Photos are stored locally and never uploaded.
+    -->
     <uses-permission android:name="android.permission.CAMERA" />
 
-    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!--
+        RECORD_AUDIO: used for voice expense entry via the system
+        speech recogniser. Audio is processed on-device only.
+    -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
+
+    <uses-feature android:name="android.hardware.camera"        android:required="false" />
+    <uses-feature android:name="android.hardware.microphone"    android:required="false" />
 
     <application
         android:name=".ExpenseApplication"
@@ -36,7 +47,7 @@
         -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713" />
+            android:value="ca-app-pub-4989909437303771~6250507402" />
 
         <!-- FileProvider for sharing receipt photo URIs with the camera app -->
         <provider

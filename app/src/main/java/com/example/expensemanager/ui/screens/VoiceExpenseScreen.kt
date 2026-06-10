@@ -1,12 +1,16 @@
 package com.example.expensemanager.ui.screens
 
+import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -22,27 +26,31 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.expensemanager.data.model.Expense
+import com.example.expensemanager.ui.theme.*
+import com.example.expensemanager.ui.theme.LocalCurrency
 import com.example.expensemanager.viewmodel.ExpenseViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VoiceExpenseScreen(
     expenseViewModel: ExpenseViewModel,
-    onSaved: () -> Unit,
-    onBack: () -> Unit
+    onSaved         : () -> Unit,
+    onBack          : () -> Unit
 ) {
     val categories by expenseViewModel.categories.collectAsStateWithLifecycle()
+    val currency    = LocalCurrency.current
 
     var recognizedText by remember { mutableStateOf("") }
     var parsedAmount   by remember { mutableStateOf("") }
@@ -53,18 +61,7 @@ fun VoiceExpenseScreen(
     var savedSuccess   by remember { mutableStateOf(false) }
     var noSpeechApp    by remember { mutableStateOf(false) }
 
-    // Pulse animation for mic button when listening
-    val micScale = remember { Animatable(1f) }
-    LaunchedEffect(isListening) {
-        if (isListening) {
-            while (true) {
-                micScale.animateTo(1.18f, tween(500, easing = FastOutSlowInEasing))
-                micScale.animateTo(1f,    tween(500, easing = FastOutSlowInEasing))
-            }
-        } else {
-            micScale.animateTo(1f, tween(200))
-        }
-    }
+    val context = LocalContext.current
 
     val speechLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -84,7 +81,7 @@ fun VoiceExpenseScreen(
         }
     }
 
-    fun launchSpeech() {
+    fun openSpeechRecognizer() {
         try {
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
@@ -102,307 +99,465 @@ fun VoiceExpenseScreen(
         }
     }
 
-    val gradStart = MaterialTheme.colorScheme.primary
-    val gradEnd   = MaterialTheme.colorScheme.tertiary
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) openSpeechRecognizer() }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Voice Expense", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back",
-                            tint = MaterialTheme.colorScheme.onPrimary)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+    fun launchSpeech() {
+        val granted = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+        if (granted) openSpeechRecognizer()
+        else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Bg)
+            .systemBarsPadding()
+    ) {
+        // ── Back header ───────────────────────────────────────────────────────
+        Row(
+            modifier          = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = TextPrimary)
+            }
+            Spacer(Modifier.width(4.dp))
+            Text(
+                "Voice Expense",
+                style      = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color      = TextPrimary
             )
         }
-    ) { paddingValues ->
+
         Column(
-            modifier = Modifier
+            modifier            = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .background(MaterialTheme.colorScheme.background)
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp),
+                .padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
+            // ── Pulse mic ─────────────────────────────────────────────────────
+            PulseMicButton(isListening = isListening, onClick = { launchSpeech() })
 
-            // ── Mic circle ────────────────────────────────────────────────
-            Box(
-                modifier = Modifier
-                    .size(120.dp)
-                    .scale(micScale.value)
-                    .clip(CircleShape)
-                    .background(Brush.radialGradient(listOf(gradStart, gradEnd))),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Filled.Mic, contentDescription = null,
-                    tint = Color.White, modifier = Modifier.size(52.dp))
-            }
-
+            // ── Status label ──────────────────────────────────────────────────
             Text(
                 text = when {
                     isListening -> "Listening…"
                     showPreview -> "Tap mic to try again"
                     else        -> "Tap to speak"
                 },
-                style = MaterialTheme.typography.titleMedium,
+                style      = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = if (isListening) gradStart else MaterialTheme.colorScheme.onBackground
+                color      = if (isListening) Brand400 else TextPrimary
             )
 
             Text(
-                text = "Say something like:\n\"500 food at KFC\" or\n\"Spent 1200 on transport Uber\"",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text      = "Say something like:\n\"500 food at KFC\" or\n\"Spent 1200 on transport Uber\"",
+                style     = MaterialTheme.typography.bodySmall,
+                color     = TextSecondary,
                 textAlign = TextAlign.Center
             )
 
-            // ── Speak button ──────────────────────────────────────────────
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(
-                        if (!isListening) Brush.horizontalGradient(listOf(gradStart, gradEnd))
-                        else Brush.horizontalGradient(listOf(
-                            MaterialTheme.colorScheme.surfaceVariant,
-                            MaterialTheme.colorScheme.surfaceVariant
-                        ))
-                    )
-                    .clickable(enabled = !isListening) { launchSpeech() },
-                contentAlignment = Alignment.Center
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Filled.Mic, contentDescription = null,
-                        tint = Color.White, modifier = Modifier.size(20.dp))
-                    Text(
-                        if (isListening) "Listening…" else "Start Listening",
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                }
-            }
-
-            // ── Error: no speech app ──────────────────────────────────────
+            // ── Error: no speech app ──────────────────────────────────────────
             if (noSpeechApp) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(ErrorRed.copy(alpha = 0.10f))
+                        .border(1.dp, ErrorRed.copy(alpha = 0.25f), RoundedCornerShape(14.dp))
+                        .padding(16.dp)
                 ) {
                     Text(
                         "Speech recognition is not available. Please install Google app or enable voice input.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.padding(16.dp),
+                        style     = MaterialTheme.typography.bodySmall,
+                        color     = ErrorRed,
                         textAlign = TextAlign.Center
                     )
                 }
             }
 
-            // ── Recognized text display ───────────────────────────────────
+            // ── Transcript card ───────────────────────────────────────────────
             if (recognizedText.isNotBlank()) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Surface)
+                        .border(1.dp, SurfaceVar, RoundedCornerShape(14.dp))
+                        .padding(16.dp)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Heard",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(4.dp))
-                        Text("\"$recognizedText\"",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium)
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            "HEARD",
+                            style  = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
+                            color  = TextSecondary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "\"$recognizedText\"",
+                            style      = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color      = TextPrimary
+                        )
                     }
                 }
             }
 
-            // ── Preview / edit before saving ──────────────────────────────
+            // ── Parsed expense preview ────────────────────────────────────────
             if (showPreview && !savedSuccess) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    elevation = CardDefaults.cardElevation(2.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface)
+                ParsedExpenseCard(
+                    currency       = currency,
+                    parsedAmount   = parsedAmount,
+                    parsedMerchant = parsedMerchant,
+                    parsedCategory = parsedCategory,
+                    categories     = categories,
+                    onAmountChange   = { parsedAmount   = it },
+                    onMerchantChange = { parsedMerchant = it },
+                    onCategoryChange = { parsedCategory = it },
+                    onSave = {
+                        val amount = parsedAmount.toDoubleOrNull() ?: return@ParsedExpenseCard
+                        val catId  = categories.find { it.name == parsedCategory }?.id
+                            ?: categories.firstOrNull()?.id ?: 1L
+                        val now   = SimpleDateFormat("HH:mm",       Locale.getDefault()).format(Date())
+                        val today = SimpleDateFormat("yyyy-MM-dd",  Locale.getDefault()).format(Date())
+                        expenseViewModel.addExpense(
+                            Expense(
+                                amount      = amount,
+                                categoryId  = catId,
+                                description = parsedMerchant.ifBlank { "Voice expense" },
+                                merchant    = parsedMerchant.ifBlank { null },
+                                date        = today,
+                                time        = now,
+                                source      = "voice"
+                            )
+                        )
+                        savedSuccess = true
+                    },
+                    onTryAgain = {
+                        recognizedText = ""; parsedAmount = ""
+                        parsedMerchant = ""; parsedCategory = ""
+                        showPreview = false
+                        launchSpeech()
+                    }
+                )
+            }
+
+            // ── Success state ─────────────────────────────────────────────────
+            if (savedSuccess) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Brand400.copy(alpha = 0.09f))
+                        .border(1.dp, Brand400.copy(alpha = 0.25f), RoundedCornerShape(20.dp))
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Column(
-                        modifier = Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text("Review & Edit",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold)
-
-                        OutlinedTextField(
-                            value = parsedAmount,
-                            onValueChange = { parsedAmount = it },
-                            label = { Text("Amount (PKR)") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
+                        Text("✓", style = MaterialTheme.typography.displaySmall, color = Brand400)
+                        Text(
+                            "Expense Saved!",
+                            style      = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color      = Brand400
                         )
-
-                        OutlinedTextField(
-                            value = parsedMerchant,
-                            onValueChange = { parsedMerchant = it },
-                            label = { Text("Merchant / Description") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-
-                        // Category selector (horizontal chips, no dropdown)
-                        Text("Category",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            categories.forEach { cat ->
-                                val selected = cat.name == parsedCategory
-                                Surface(
-                                    shape = RoundedCornerShape(20.dp),
-                                    color = if (selected) gradStart
-                                            else MaterialTheme.colorScheme.surfaceVariant,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(20.dp))
-                                        .clickable { parsedCategory = cat.name }
-                                ) {
-                                    Text(
-                                        text = "${cat.icon} ${cat.name}",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = if (selected) Color.White
-                                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                                    )
-                                }
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(SurfaceEl)
+                                    .border(1.dp, SurfaceVar, RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        recognizedText = ""; parsedAmount = ""
+                                        parsedMerchant = ""; parsedCategory = ""
+                                        showPreview = false; savedSuccess = false
+                                    }
+                                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                            ) {
+                                Text("Add Another", style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Brand400)
+                                    .clickable(onClick = onSaved)
+                                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                            ) {
+                                Text("View Expenses", style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold, color = Color(0xFF0A0A0A))
                             }
                         }
+                    }
+                }
+            }
 
-                        // Save button
-                        val canSave = parsedAmount.toDoubleOrNull() != null
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+// ── Pulse mic button (3 expanding rings) ──────────────────────────────────────
+
+@Composable
+private fun PulseMicButton(isListening: Boolean, onClick: () -> Unit) {
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+
+    val ring1Scale by infiniteTransition.animateFloat(
+        initialValue   = 1f,
+        targetValue    = 1.6f,
+        animationSpec  = infiniteRepeatable(tween(1200, easing = LinearEasing), RepeatMode.Restart),
+        label          = "ring1"
+    )
+    val ring2Scale by infiniteTransition.animateFloat(
+        initialValue   = 1f,
+        targetValue    = 1.6f,
+        animationSpec  = infiniteRepeatable(tween(1200, 400, easing = LinearEasing), RepeatMode.Restart),
+        label          = "ring2"
+    )
+    val ring3Scale by infiniteTransition.animateFloat(
+        initialValue   = 1f,
+        targetValue    = 1.6f,
+        animationSpec  = infiniteRepeatable(tween(1200, 800, easing = LinearEasing), RepeatMode.Restart),
+        label          = "ring3"
+    )
+    val ringAlpha1 = ((1.6f - ring1Scale) / 0.6f).coerceIn(0f, 1f)
+    val ringAlpha2 = ((1.6f - ring2Scale) / 0.6f).coerceIn(0f, 1f)
+    val ringAlpha3 = ((1.6f - ring3Scale) / 0.6f).coerceIn(0f, 1f)
+
+    Box(
+        modifier         = Modifier.size(160.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        if (isListening) {
+            // Ring 1
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .scale(ring1Scale)
+                    .clip(CircleShape)
+                    .background(Brand400.copy(alpha = ringAlpha1 * 0.18f))
+            )
+            // Ring 2
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .scale(ring2Scale)
+                    .clip(CircleShape)
+                    .background(Brand400.copy(alpha = ringAlpha2 * 0.12f))
+            )
+            // Ring 3
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .scale(ring3Scale)
+                    .clip(CircleShape)
+                    .background(Brand400.copy(alpha = ringAlpha3 * 0.07f))
+            )
+        }
+        // Mic button
+        Box(
+            modifier = Modifier
+                .size(88.dp)
+                .clip(CircleShape)
+                .background(if (isListening) Brand400 else SurfaceEl)
+                .border(
+                    width = if (isListening) 0.dp else 1.5.dp,
+                    color = if (isListening) Color.Transparent else SurfaceVar,
+                    shape = CircleShape
+                )
+                .clickable(
+                    indication        = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) { onClick() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Filled.Mic,
+                contentDescription = "Mic",
+                tint     = if (isListening) Color(0xFF0A0A0A) else Brand400,
+                modifier = Modifier.size(38.dp)
+            )
+        }
+    }
+}
+
+// ── Parsed expense preview card ───────────────────────────────────────────────
+
+@Composable
+private fun ParsedExpenseCard(
+    currency        : String,
+    parsedAmount    : String,
+    parsedMerchant  : String,
+    parsedCategory  : String,
+    categories      : List<com.example.expensemanager.data.model.Category>,
+    onAmountChange  : (String) -> Unit,
+    onMerchantChange: (String) -> Unit,
+    onCategoryChange: (String) -> Unit,
+    onSave          : () -> Unit,
+    onTryAgain      : () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(Surface)
+            .border(1.dp, SurfaceVar, RoundedCornerShape(20.dp))
+            .padding(20.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text(
+                "Review & Edit",
+                style      = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color      = TextPrimary
+            )
+
+            // Amount field
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Amount ($currency)", style = MaterialTheme.typography.labelSmall,
+                    color = TextSecondary)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(SurfaceEl)
+                        .border(1.dp, SurfaceVar, RoundedCornerShape(10.dp))
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                ) {
+                    if (parsedAmount.isEmpty()) {
+                        Text("0.00", color = TextMuted,
+                            style = MaterialTheme.typography.bodyLarge)
+                    }
+                    androidx.compose.foundation.text.BasicTextField(
+                        value       = parsedAmount,
+                        onValueChange = onAmountChange,
+                        singleLine  = true,
+                        textStyle   = MaterialTheme.typography.bodyLarge.copy(color = TextPrimary)
+                    )
+                }
+            }
+
+            // Merchant field
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Merchant / Description", style = MaterialTheme.typography.labelSmall,
+                    color = TextSecondary)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(SurfaceEl)
+                        .border(1.dp, SurfaceVar, RoundedCornerShape(10.dp))
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                ) {
+                    if (parsedMerchant.isEmpty()) {
+                        Text("e.g. KFC, Carrefour", color = TextMuted,
+                            style = MaterialTheme.typography.bodyLarge)
+                    }
+                    androidx.compose.foundation.text.BasicTextField(
+                        value       = parsedMerchant,
+                        onValueChange = onMerchantChange,
+                        singleLine  = true,
+                        textStyle   = MaterialTheme.typography.bodyLarge.copy(color = TextPrimary)
+                    )
+                }
+            }
+
+            // Category chips
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Category", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    categories.forEach { cat ->
+                        val selected = cat.name == parsedCategory
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .height(54.dp)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(
-                                    if (canSave) Brush.horizontalGradient(listOf(gradStart, gradEnd))
-                                    else Brush.horizontalGradient(listOf(
-                                        MaterialTheme.colorScheme.surfaceVariant,
-                                        MaterialTheme.colorScheme.surfaceVariant
-                                    ))
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(if (selected) Brand400 else SurfaceEl)
+                                .border(
+                                    1.dp,
+                                    if (selected) Brand400 else SurfaceVar,
+                                    RoundedCornerShape(20.dp)
                                 )
-                                .clickable(
-                                    enabled = canSave,
-                                    indication = null,
-                                    interactionSource = remember { MutableInteractionSource() }
-                                ) {
-                                    val amount = parsedAmount.toDoubleOrNull() ?: return@clickable
-                                    val catId  = categories.find { it.name == parsedCategory }?.id
-                                        ?: categories.firstOrNull()?.id ?: 1L
-                                    val now   = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
-                                    val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                                    expenseViewModel.addExpense(
-                                        Expense(
-                                            amount      = amount,
-                                            categoryId  = catId,
-                                            description = parsedMerchant.ifBlank { "Voice expense" },
-                                            merchant    = parsedMerchant.ifBlank { null },
-                                            date        = today,
-                                            time        = now,
-                                            source      = "voice"
-                                        )
-                                    )
-                                    savedSuccess = true
-                                },
-                            contentAlignment = Alignment.Center
+                                .clickable { onCategoryChange(cat.name) }
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
                         ) {
                             Text(
-                                "Save Expense",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = if (canSave) Color.White
-                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                                "${cat.icon} ${cat.name}",
+                                style  = MaterialTheme.typography.labelMedium,
+                                color  = if (selected) Color(0xFF0A0A0A) else TextSecondary,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
                             )
                         }
                     }
                 }
             }
 
-            // ── Success card ──────────────────────────────────────────────
-            if (savedSuccess) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFF10B981).copy(alpha = 0.12f))
+            // Action row
+            Row(
+                modifier              = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Try Again
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(SurfaceEl)
+                        .border(1.dp, SurfaceVar, RoundedCornerShape(12.dp))
+                        .clickable(onClick = onTryAgain),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text("✓", style = MaterialTheme.typography.displaySmall,
-                            color = Color(0xFF10B981))
-                        Text("Expense Saved!",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF10B981))
-                        OutlinedButton(
-                            onClick = {
-                                recognizedText = ""; parsedAmount = ""
-                                parsedMerchant = ""; parsedCategory = ""
-                                showPreview = false; savedSuccess = false
-                            },
-                            shape = RoundedCornerShape(12.dp)
-                        ) { Text("Add Another") }
-                        TextButton(onClick = onSaved) {
-                            Text("View Expenses")
-                        }
-                    }
+                    Text("Try Again", style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                }
+                // Save
+                val canSave = parsedAmount.toDoubleOrNull() != null
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (canSave) Brand400 else Brand400.copy(alpha = 0.35f))
+                        .clickable(enabled = canSave, onClick = onSave),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Save Expense", style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold, color = Color(0xFF0A0A0A))
                 }
             }
         }
     }
 }
 
-// ── Voice text parser ─────────────────────────────────────────────────────────
+// ── Voice text parser (unchanged logic) ──────────────────────────────────────
 
 private fun parseVoiceInput(text: String, categoryNames: List<String>): Triple<Double?, String?, String?> {
     val lower = text.lowercase()
-
-    // Amount: first digit sequence
     val amount = Regex("""(\d+(?:\.\d{1,2})?)""").find(lower)
         ?.groupValues?.get(1)?.toDoubleOrNull()
-
-    // Category: check if any category name exists verbatim in text first
     val category = categoryNames.firstOrNull { lower.contains(it.lowercase()) }
         ?: inferCategoryFromKeywords(lower, categoryNames)
-
-    // Merchant: words after "at", "from", "in"
     val merchant = Regex("""(?:at|from|in)\s+([a-z][a-z\s]{1,25})(?:\s+for|\s+on|\s+worth|\s+using|$)""")
         .find(lower)?.groupValues?.get(1)?.trim()
         ?.split(" ")?.joinToString(" ") { w -> w.replaceFirstChar { it.uppercase() } }
-
     return Triple(amount, category, merchant)
 }
 

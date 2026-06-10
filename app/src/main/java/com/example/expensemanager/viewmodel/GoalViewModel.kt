@@ -63,6 +63,43 @@ class GoalViewModel(
         }
     }
 
+    /**
+     * Saves the flexible budget configuration. [monthlyLimit] is the resolved
+     * monthly spending limit (already accounting for budgetType/budgetMode);
+     * goalAmount is derived as incomeTarget - monthlyLimit so existing dashboard
+     * computations (budget = incomeTarget + extraIncome - goalAmount) keep working.
+     */
+    fun saveBudgetSettings(
+        incomeTarget: Double,
+        monthlyLimit: Double,
+        budgetType: String,
+        budgetMode: String,
+        budgetAmount: Double,
+        budgetPercent: Double,
+        savingsPercent: Double,
+        periodStart: String?,
+        periodEnd: String?
+    ) {
+        viewModelScope.launch {
+            _isSaving.value = true
+            repository.upsertGoal(
+                SavingGoal(
+                    month          = _selectedMonth.value,
+                    goalAmount     = (incomeTarget - monthlyLimit),
+                    incomeTarget   = incomeTarget,
+                    budgetType     = budgetType,
+                    budgetMode     = budgetMode,
+                    budgetAmount   = budgetAmount,
+                    budgetPercent  = budgetPercent,
+                    savingsPercent = savingsPercent,
+                    periodStart    = periodStart,
+                    periodEnd      = periodEnd
+                )
+            )
+            _isSaving.value = false
+        }
+    }
+
     fun addManualIncome(amount: Double, description: String) {
         viewModelScope.launch {
             val now = Date()
@@ -75,6 +112,25 @@ class GoalViewModel(
                     source      = "manual",
                     month       = _selectedMonth.value,
                     smsHash     = null
+                )
+            )
+        }
+    }
+
+    /** Adds an income entry for the currently selected month with an explicit date and recurring flag. */
+    fun addIncomeEntry(amount: Double, source: String, date: String, recurring: Boolean) {
+        viewModelScope.launch {
+            val now = Date()
+            repository.insertIncome(
+                Income(
+                    amount      = amount,
+                    description = source,
+                    date        = date,
+                    time        = timeSdf.format(now),
+                    source      = "manual",
+                    month       = _selectedMonth.value,
+                    smsHash     = null,
+                    recurring   = recurring
                 )
             )
         }

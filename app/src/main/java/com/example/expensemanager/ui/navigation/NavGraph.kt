@@ -1,88 +1,94 @@
 package com.example.expensemanager.ui.navigation
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Sms
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import android.app.Activity
+import androidx.compose.ui.platform.LocalContext
+import com.example.expensemanager.monetization.BillingManager
+import com.example.expensemanager.monetization.InterstitialAdManager
 import com.example.expensemanager.monetization.ProGate
 import com.example.expensemanager.monetization.ProManager
-import com.example.expensemanager.ui.screens.AddExpenseScreen
-import com.example.expensemanager.ui.screens.ProUpgradeScreen
+import com.example.expensemanager.ui.screens.BadgesScreen
 import com.example.expensemanager.ui.screens.DashboardScreen
 import com.example.expensemanager.ui.screens.ExportImportScreen
 import com.example.expensemanager.ui.screens.ExpenseListScreen
 import com.example.expensemanager.ui.screens.GoalSettingScreen
+import com.example.expensemanager.ui.screens.IncomeScreen
 import com.example.expensemanager.ui.screens.ManageCategoriesScreen
+import com.example.expensemanager.ui.screens.ProUpgradeScreen
 import com.example.expensemanager.ui.screens.ReceiptScanScreen
 import com.example.expensemanager.ui.screens.RecurringScreen
-import com.example.expensemanager.ui.screens.SmsScreen
+import com.example.expensemanager.ui.screens.SettingsScreen
+import com.example.expensemanager.ui.screens.SideBudgetScreen
+import com.example.expensemanager.ui.screens.SideProjectsScreen
 import com.example.expensemanager.ui.screens.VoiceExpenseScreen
+import com.example.expensemanager.ui.theme.LocalCurrency
+import com.example.expensemanager.viewmodel.BadgeViewModel
 import com.example.expensemanager.viewmodel.DashboardViewModel
 import com.example.expensemanager.viewmodel.ExportImportViewModel
 import com.example.expensemanager.viewmodel.ExpenseViewModel
 import com.example.expensemanager.viewmodel.GoalViewModel
 import com.example.expensemanager.viewmodel.ReceiptViewModel
 import com.example.expensemanager.viewmodel.RecurringViewModel
-import com.example.expensemanager.viewmodel.SmsViewModel
+import com.example.expensemanager.viewmodel.SettingsViewModel
+import com.example.expensemanager.viewmodel.SideBudgetViewModel
+import com.example.expensemanager.viewmodel.SideProjectViewModel
 
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
-    object Expenses   : Screen("expenses",   "Expenses",   Icons.Filled.List)
-    object Add        : Screen("add",        "Add",        Icons.Filled.Add)
-    object Dashboard  : Screen("dashboard",  "Dashboard",  Icons.Filled.BarChart)
-    object Sms        : Screen("sms",        "SMS",        Icons.Filled.Sms)
-    object Categories : Screen("categories", "Categories", Icons.Filled.Label)
-    object Files      : Screen("files",      "Files",      Icons.Filled.FolderOpen)
+    object Expenses   : Screen("expenses",   "Expenses",  Icons.Filled.List)
+    object Dashboard  : Screen("dashboard",  "Dashboard", Icons.Filled.BarChart)
+    object Recurring  : Screen("recurring",  "Recurring", Icons.Filled.Repeat)
+    object Settings   : Screen("settings",   "Settings",  Icons.Filled.Settings)
 }
 
 val bottomNavItems = listOf(
     Screen.Expenses,
-    Screen.Add,
     Screen.Dashboard,
-    Screen.Sms,
-    Screen.Categories,
-    Screen.Files
+    Screen.Recurring,
+    Screen.Settings
 )
 
 @Composable
 fun NavGraph(
     expenseViewModel     : ExpenseViewModel,
     dashboardViewModel   : DashboardViewModel,
-    smsViewModel         : SmsViewModel,
     exportImportViewModel: ExportImportViewModel,
     goalViewModel        : GoalViewModel,
     receiptViewModel     : ReceiptViewModel,
     recurringViewModel   : RecurringViewModel,
-    proManager           : ProManager
+    settingsViewModel    : SettingsViewModel,
+    sideBudgetViewModel  : SideBudgetViewModel,
+    sideProjectViewModel : SideProjectViewModel,
+    badgeViewModel       : BadgeViewModel,
+    proManager           : ProManager,
+    billingManager       : BillingManager,
+    interstitialAdManager: InterstitialAdManager
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    val isPro by proManager.isPro.collectAsStateWithLifecycle()
-
-    // Hide FAB on certain screens; also hide mic FAB for free users (voice is Pro)
-    val showFab = isPro
-        && currentRoute != "voice" && currentRoute != "goals"
-        && currentRoute != "receipt" && currentRoute != "recurring"
-        && currentRoute != "upgrade"
+    val currency by settingsViewModel.currencySymbol.collectAsStateWithLifecycle()
+    val sideProjects by sideProjectViewModel.allProjects.collectAsStateWithLifecycle()
 
     Scaffold(
         bottomBar = {
@@ -90,7 +96,7 @@ fun NavGraph(
                 bottomNavItems.forEach { screen ->
                     NavigationBarItem(
                         icon     = { Icon(screen.icon, contentDescription = screen.label) },
-                        label    = null,
+                        label    = { Text(screen.label) },
                         selected = navBackStackEntry?.destination
                             ?.hierarchy?.any { it.route == screen.route } == true,
                         onClick  = {
@@ -105,74 +111,146 @@ fun NavGraph(
                     )
                 }
             }
-        },
-        floatingActionButton = {
-            if (showFab) {
-                FloatingActionButton(
-                    onClick        = { navController.navigate("voice") },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor   = MaterialTheme.colorScheme.onPrimary
-                ) {
-                    Icon(Icons.Filled.Mic, contentDescription = "Voice Expense")
-                }
-            }
         }
     ) { innerPadding ->
-        NavHost(
-            navController    = navController,
-            startDestination = Screen.Expenses.route,
-            modifier         = Modifier.padding(innerPadding)
-        ) {
-            composable(Screen.Expenses.route) {
-                ExpenseListScreen(viewModel = expenseViewModel, proManager = proManager)
-            }
-            composable(Screen.Add.route) {
-                AddExpenseScreen(
-                    viewModel     = expenseViewModel,
-                    onSaved       = {
-                        navController.navigate(Screen.Expenses.route) {
-                            popUpTo(Screen.Expenses.route) { inclusive = true }
-                        }
-                    },
-                    onScanReceipt = { navController.navigate("receipt") },
-                    onRecurring   = { navController.navigate("recurring") }
-                )
-            }
-            composable(Screen.Dashboard.route) {
-                DashboardScreen(
-                    viewModel         = dashboardViewModel,
-                    onNavigateToGoals = { navController.navigate("goals") }
-                )
-            }
-            composable(Screen.Sms.route) {
-                ProGate(
-                    proManager  = proManager,
-                    featureName = "SMS Auto-Import",
-                    featureIcon = "📩",
-                    description = "Automatically scan your bank messages and log debit transactions — no manual entry needed.",
-                    onUpgrade   = { navController.navigate("upgrade") }
-                ) {
-                    SmsScreen(
-                        viewModel        = smsViewModel,
-                        expenseViewModel = expenseViewModel
+        CompositionLocalProvider(LocalCurrency provides currency) {
+            NavHost(
+                navController    = navController,
+                startDestination = Screen.Expenses.route,
+                modifier         = Modifier
+                    .padding(innerPadding)
+                    .statusBarsPadding()
+            ) {
+                composable(Screen.Expenses.route) {
+                    ExpenseListScreen(
+                        viewModel             = expenseViewModel,
+                        proManager            = proManager,
+                        interstitialAdManager = interstitialAdManager,
+                        onNavigateToReceipt   = { navController.navigate("receipt") },
+                        onNavigateToVoice     = { navController.navigate("voice") },
+                        onNavigateToRecurring = { navController.navigate("recurring") },
+                        onSaveRecurring       = { name, amount, catId, desc, freq, startDate ->
+                            recurringViewModel.addRecurring(name, amount, catId, desc, freq, startDate, null)
+                        },
+                        projects              = sideProjects
                     )
                 }
-            }
-            composable(Screen.Categories.route) {
-                ManageCategoriesScreen(viewModel = expenseViewModel)
-            }
-            composable(Screen.Files.route) {
-                ExportImportScreen(viewModel = exportImportViewModel)
-            }
-            composable("voice") {
-                ProGate(
-                    proManager  = proManager,
-                    featureName = "Voice Entry",
-                    featureIcon = "🎙️",
-                    description = "Just say \"Spent 500 at KFC\" and it's logged instantly — completely hands-free.",
-                    onUpgrade   = { navController.navigate("upgrade") }
-                ) {
-                    VoiceExpenseScreen(
+                composable(Screen.Dashboard.route) {
+                    DashboardScreen(
+                        viewModel         = dashboardViewModel,
+                        onNavigateToGoals = { navController.navigate("goals") },
+                        proManager        = proManager
+                    )
+                }
+                composable(Screen.Recurring.route) {
+                    RecurringScreen(
+                        recurringViewModel = recurringViewModel,
+                        expenseViewModel   = expenseViewModel,
+                        onBack             = { navController.navigate(Screen.Expenses.route) }
+                    )
+                }
+                composable(Screen.Settings.route) {
+                    SettingsScreen(
+                        settingsViewModel      = settingsViewModel,
+                        proManager             = proManager,
+                        onNavigateToGoals      = { navController.navigate("goals") },
+                        onNavigateToCategories = { navController.navigate("categories") },
+                        onNavigateToFiles      = { navController.navigate("files") },
+                        onNavigateToUpgrade    = { navController.navigate("upgrade") },
+                        onNavigateToSideBudget   = { navController.navigate("side_budget") },
+                        onNavigateToIncome       = { navController.navigate("income") },
+                        onNavigateToSideProjects = { navController.navigate("side_projects") },
+                        onNavigateToBadges       = { navController.navigate("badges") }
+                    )
+                }
+                composable("voice") {
+                    ProGate(
+                        proManager  = proManager,
+                        featureName = "Voice Entry",
+                        featureIcon = "🎙️",
+                        description = "Just say \"Spent 500 at KFC\" and it's logged instantly — completely hands-free.",
+                        onUpgrade   = { navController.navigate("upgrade") }
+                    ) {
+                        VoiceExpenseScreen(
+                            expenseViewModel = expenseViewModel,
+                            onSaved = {
+                                navController.navigate(Screen.Expenses.route) {
+                                    popUpTo(Screen.Expenses.route) { inclusive = true }
+                                }
+                            },
+                            onBack  = { navController.popBackStack() }
+                        )
+                    }
+                }
+                composable("goals") {
+                    ProGate(
+                        proManager  = proManager,
+                        featureName = "Budget & Goals",
+                        featureIcon = "🎯",
+                        description = "Set monthly saving goals, track your daily spend budget, and get warnings before you overspend.",
+                        onUpgrade   = { navController.navigate("upgrade") }
+                    ) {
+                        GoalSettingScreen(
+                            viewModel          = goalViewModel,
+                            onBack             = { navController.popBackStack() },
+                            onNavigateToIncome = { navController.navigate("income") }
+                        )
+                    }
+                }
+                composable("income") {
+                    IncomeScreen(
+                        viewModel = goalViewModel,
+                        onBack    = { navController.popBackStack() }
+                    )
+                }
+                composable("side_budget") {
+                    SideBudgetScreen(
+                        viewModel = sideBudgetViewModel,
+                        onBack    = { navController.popBackStack() }
+                    )
+                }
+                composable("side_projects") {
+                    ProGate(
+                        proManager  = proManager,
+                        featureName = "Side Projects",
+                        featureIcon = "📁",
+                        description = "Create named budget projects, track their own expenses and analytics, separate from your main budget.",
+                        onUpgrade   = { navController.navigate("upgrade") }
+                    ) {
+                        SideProjectsScreen(
+                            viewModel = sideProjectViewModel,
+                            onBack    = { navController.popBackStack() }
+                        )
+                    }
+                }
+                composable("badges") {
+                    ProGate(
+                        proManager  = proManager,
+                        featureName = "Badges",
+                        featureIcon = "🏆",
+                        description = "Get a monthly score based on your budget adherence, savings rate, daily discipline, and consistency.",
+                        onUpgrade   = { navController.navigate("upgrade") }
+                    ) {
+                        BadgesScreen(
+                            viewModel = badgeViewModel,
+                            onBack    = { navController.popBackStack() }
+                        )
+                    }
+                }
+                composable("upgrade") {
+                    val activity = LocalContext.current as Activity
+                    ProUpgradeScreen(
+                        proManager         = proManager,
+                        billingManager     = billingManager,
+                        onBack             = { navController.popBackStack() },
+                        onPurchase         = { planId -> billingManager.launchBillingFlow(activity, planId) },
+                        onRestore          = { billingManager.restorePurchases() },
+                        onDebugActivatePro = { proManager.grantPro() }
+                    )
+                }
+                composable("receipt") {
+                    ReceiptScanScreen(
+                        receiptViewModel = receiptViewModel,
                         expenseViewModel = expenseViewModel,
                         onSaved = {
                             navController.navigate(Screen.Expenses.route) {
@@ -182,45 +260,19 @@ fun NavGraph(
                         onBack  = { navController.popBackStack() }
                     )
                 }
-            }
-            composable("goals") {
-                ProGate(
-                    proManager  = proManager,
-                    featureName = "Budget & Goals",
-                    featureIcon = "🎯",
-                    description = "Set monthly saving goals, track your daily spend budget, and get warnings before you overspend.",
-                    onUpgrade   = { navController.navigate("upgrade") }
-                ) {
-                    GoalSettingScreen(
-                        viewModel = goalViewModel,
-                        onBack    = { navController.popBackStack() }
+                composable("recurring") {
+                    RecurringScreen(
+                        recurringViewModel = recurringViewModel,
+                        expenseViewModel   = expenseViewModel,
+                        onBack             = { navController.popBackStack() }
                     )
                 }
-            }
-            composable("upgrade") {
-                ProUpgradeScreen(
-                    proManager = proManager,
-                    onBack     = { navController.popBackStack() }
-                )
-            }
-            composable("receipt") {
-                ReceiptScanScreen(
-                    receiptViewModel = receiptViewModel,
-                    expenseViewModel = expenseViewModel,
-                    onSaved = {
-                        navController.navigate(Screen.Expenses.route) {
-                            popUpTo(Screen.Expenses.route) { inclusive = true }
-                        }
-                    },
-                    onBack  = { navController.popBackStack() }
-                )
-            }
-            composable("recurring") {
-                RecurringScreen(
-                    recurringViewModel = recurringViewModel,
-                    expenseViewModel   = expenseViewModel,
-                    onBack             = { navController.popBackStack() }
-                )
+                composable("categories") {
+                    ManageCategoriesScreen(viewModel = expenseViewModel)
+                }
+                composable("files") {
+                    ExportImportScreen(viewModel = exportImportViewModel)
+                }
             }
         }
     }

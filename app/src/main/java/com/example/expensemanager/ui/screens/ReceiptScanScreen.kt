@@ -1,5 +1,7 @@
 package com.example.expensemanager.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -8,6 +10,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,8 +36,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.expensemanager.ui.theme.LocalCurrency
 import com.example.expensemanager.viewmodel.ExpenseViewModel
 import com.example.expensemanager.viewmodel.ReceiptViewModel
 import java.io.File
@@ -50,6 +55,7 @@ fun ReceiptScanScreen(
     onBack           : () -> Unit
 ) {
     val context       = LocalContext.current
+    val currency      = LocalCurrency.current
     val imagePath     by receiptViewModel.imagePath.collectAsStateWithLifecycle()
     val isProcessing  by receiptViewModel.isProcessing.collectAsStateWithLifecycle()
     val parsedReceipt by receiptViewModel.parsedReceipt.collectAsStateWithLifecycle()
@@ -90,12 +96,28 @@ fun ReceiptScanScreen(
         }
     }
 
-    fun launchCamera() {
+    // Prepares the file and fires the camera intent (called only after permission granted)
+    fun openCamera() {
         val file = File(context.filesDir, "receipts/${System.currentTimeMillis()}.jpg")
             .also { it.parentFile?.mkdirs() }
         photoFile.value = file
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
         takePictureLauncher.launch(uri)
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) openCamera()
+        // If denied, do nothing — user sees no camera, no crash
+    }
+
+    fun launchCamera() {
+        val alreadyGranted = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+        if (alreadyGranted) openCamera()
+        else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
     }
 
     // Navigate away after save
@@ -278,12 +300,12 @@ fun ReceiptScanScreen(
                         OutlinedTextField(
                             value         = amountText,
                             onValueChange = { amountText = it.filter { c -> c.isDigit() || c == '.' } },
-                            label         = { Text("Amount (PKR)") },
+                            label         = { Text("Amount ($currency)") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             singleLine    = true,
                             modifier      = Modifier.fillMaxWidth(),
                             leadingIcon   = {
-                                Text("PKR",
+                                Text(currency,
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary)

@@ -2,10 +2,9 @@
 <resources>
 
     <!-- Base app theme: dark, no action bar, Compose handles all UI -->
+    <!-- statusBarColor / navigationBarColor intentionally omitted — handled by enableEdgeToEdge() -->
     <style name="Theme.ExpenseManager" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/splash_background</item>
-        <item name="android:statusBarColor">@color/splash_background</item>
-        <item name="android:navigationBarColor">@color/splash_background</item>
     </style>
 
     <!--

@@ -6,47 +6,38 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
-// ── SmartSpend brand greens (from icon gradient) ──────────────────────────────
-val Brand50   = Color(0xFFF0FDF4)
-val Brand100  = Color(0xFFDCFCE7)
-val Brand200  = Color(0xFFBBF7D0)
-val Brand300  = Color(0xFF86EFAC)   // light accent
-val Brand400  = Color(0xFF4ADE80)   // primary — bright lime-green from icon
-val Brand500  = Color(0xFF22C55E)   // secondary
-val Brand600  = Color(0xFF16A34A)
+// ── SmartSpend brand greens ───────────────────────────────────────────────────
+val Brand300  = Color(0xFF86EFAC)
+val Brand400  = Color(0xFF4ADE80)   // primary green accent
+val Brand500  = Color(0xFF22C55E)
 val Brand700  = Color(0xFF15803D)
-val Brand800  = Color(0xFF166534)   // deep container
-val Brand900  = Color(0xFF14532D)
-val Brand950  = Color(0xFF052E16)
+val Brand800  = Color(0xFF166534)
 
-// ── Dark surfaces (matches icon background) ───────────────────────────────────
-val Dark50    = Color(0xFF0A0A0A)   // deepest background
-val Dark100   = Color(0xFF111111)   // background
-val Dark200   = Color(0xFF1A1A1A)   // surface / card
-val Dark300   = Color(0xFF242424)   // surface variant
-val Dark400   = Color(0xFF2E2E2E)   // elevated surface / outline
-val Dark500   = Color(0xFF3A3A3A)   // outline
-val Dark600   = Color(0xFF525252)   // disabled / muted
+// ── Dark surfaces (exact design tokens) ──────────────────────────────────────
+val Bg          = Color(0xFF0D0D0D)   // T.bg — app background
+val Surface     = Color(0xFF161616)   // T.surface — cards, sheets
+val SurfaceEl   = Color(0xFF1E1E1E)   // T.surfaceEl — elevated items, inputs
+val SurfaceVar  = Color(0xFF222222)   // T.surfaceVar / T.border
+val Divider     = Color(0xFF2A2A2A)   // T.divider
 
 // ── Text ─────────────────────────────────────────────────────────────────────
-val TextPrimary   = Color(0xFFF5F5F5)
-val TextSecondary = Color(0xFFAAAAAA)
-val TextMuted     = Color(0xFF6B6B6B)
+val TextPrimary   = Color(0xFFF0F0F0)   // T.textPrimary
+val TextSecondary = Color(0xFF888888)   // T.textSecondary
+val TextMuted     = Color(0xFF555555)   // T.textMuted
 
 // ── Semantic ──────────────────────────────────────────────────────────────────
-val ErrorRed      = Color(0xFFFF6B6B)
-val ErrorRedDark  = Color(0xFF3D0000)
-val WarnAmber     = Color(0xFFFBBF24)
+val ErrorRed    = Color(0xFFFF6B6B)   // T.error
+val WarnAmber   = Color(0xFFFBBF24)   // T.amber
 
-// ── Vibrant accent palette (used in categories, charts, badges) ───────────────
-val AccentBlue    = Color(0xFF60A5FA)
-val AccentPurple  = Color(0xFFA78BFA)
-val AccentOrange  = Color(0xFFFB923C)
-val AccentPink    = Color(0xFFF472B6)
-val AccentCyan    = Color(0xFF22D3EE)
-val AccentAmber   = Color(0xFFFBBF24)
-val AccentRose    = Color(0xFFFF6B6B)
-val AccentGreen   = Brand400
+// ── Accent palette ────────────────────────────────────────────────────────────
+val AccentBlue   = Color(0xFF60A5FA)
+val AccentPurple = Color(0xFFA78BFA)
+val AccentOrange = Color(0xFFFB923C)
+val AccentPink   = Color(0xFFF472B6)
+val AccentCyan   = Color(0xFF22D3EE)
+val AccentAmber  = Color(0xFFFBBF24)
+val AccentGreen  = Brand400
+val GreenDim     = Color(0xFF4ADE80).copy(alpha = 0.09f)
 
 // ── Shapes ────────────────────────────────────────────────────────────────────
 val AppShapes = Shapes(
@@ -58,41 +49,40 @@ val AppShapes = Shapes(
 )
 
 // ── SmartSpend Dark Color Scheme ──────────────────────────────────────────────
-// Always dark — matches the brand icon (dark charcoal + lime-green)
 private val SmartSpendColorScheme = darkColorScheme(
-    primary              = Brand400,          // #4ADE80 bright lime-green
-    onPrimary            = Dark50,            // near-black on green
-    primaryContainer     = Brand800,          // deep forest green
-    onPrimaryContainer   = Brand300,          // light green on dark green
+    primary              = Brand400,
+    onPrimary            = Color(0xFF0A0A0A),
+    primaryContainer     = Brand800,
+    onPrimaryContainer   = Brand300,
 
-    secondary            = Brand500,          // #22C55E medium green
-    onSecondary          = Dark50,
+    secondary            = Brand500,
+    onSecondary          = Color(0xFF0A0A0A),
     secondaryContainer   = Color(0xFF1A3A26),
     onSecondaryContainer = Brand300,
 
-    tertiary             = AccentBlue,        // vibrant blue for contrast
+    tertiary             = AccentCyan,
     onTertiary           = Color(0xFF08142A),
     tertiaryContainer    = Color(0xFF1A2E4A),
     onTertiaryContainer  = Color(0xFFBAD3FF),
 
-    background           = Dark100,           // #111111
+    background           = Bg,
     onBackground         = TextPrimary,
 
-    surface              = Dark200,           // #1A1A1A  — cards
+    surface              = Surface,
     onSurface            = TextPrimary,
-    surfaceVariant       = Dark300,           // #242424
+    surfaceVariant       = SurfaceVar,
     onSurfaceVariant     = TextSecondary,
 
-    outline              = Dark500,           // #3A3A3A
-    outlineVariant       = Dark400,
+    outline              = Divider,
+    outlineVariant       = SurfaceVar,
 
     error                = ErrorRed,
-    onError              = ErrorRedDark,
+    onError              = Color(0xFF3D0000),
     errorContainer       = Color(0xFF3D0000),
     onErrorContainer     = Color(0xFFFFAAAA),
 
     inverseSurface       = TextPrimary,
-    inverseOnSurface     = Dark200,
+    inverseOnSurface     = Surface,
     inversePrimary       = Brand700
 )
 
@@ -100,7 +90,6 @@ private val SmartSpendColorScheme = darkColorScheme(
 fun ExpenseManagerTheme(
     content: @Composable () -> Unit
 ) {
-    // SmartSpend is always dark — consistent with the brand icon
     MaterialTheme(
         colorScheme = SmartSpendColorScheme,
         shapes      = AppShapes,

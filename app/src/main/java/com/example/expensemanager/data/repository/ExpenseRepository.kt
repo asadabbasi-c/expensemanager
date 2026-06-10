@@ -5,11 +5,15 @@ import com.example.expensemanager.data.db.ExpenseDao
 import com.example.expensemanager.data.db.IncomeDao
 import com.example.expensemanager.data.db.RecurringExpenseDao
 import com.example.expensemanager.data.db.SavingGoalDao
+import com.example.expensemanager.data.db.SideBudgetDao
+import com.example.expensemanager.data.db.SideProjectDao
 import com.example.expensemanager.data.model.Category
 import com.example.expensemanager.data.model.Expense
 import com.example.expensemanager.data.model.Income
 import com.example.expensemanager.data.model.RecurringExpense
 import com.example.expensemanager.data.model.SavingGoal
+import com.example.expensemanager.data.model.SideBudget
+import com.example.expensemanager.data.model.SideProject
 import kotlinx.coroutines.flow.Flow
 
 class ExpenseRepository(
@@ -17,7 +21,9 @@ class ExpenseRepository(
     private val categoryDao: CategoryDao,
     private val incomeDao: IncomeDao,
     private val savingGoalDao: SavingGoalDao,
-    private val recurringExpenseDao: RecurringExpenseDao
+    private val recurringExpenseDao: RecurringExpenseDao,
+    private val sideBudgetDao: SideBudgetDao,
+    private val sideProjectDao: SideProjectDao
 ) {
 
     // ── Expense operations ────────────────────────────────────────────────────
@@ -113,4 +119,28 @@ class ExpenseRepository(
 
     suspend fun deleteRecurring(expense: RecurringExpense) =
         recurringExpenseDao.deleteRecurring(expense)
+
+    // ── Side Budget operations ────────────────────────────────────────────────
+
+    fun getActiveSideBudget(): Flow<SideBudget?> = sideBudgetDao.getActiveSideBudget()
+
+    fun getAllSideBudgets(): Flow<List<SideBudget>> = sideBudgetDao.getAllSideBudgets()
+
+    suspend fun upsertSideBudget(budget: SideBudget): Long = sideBudgetDao.upsertSideBudget(budget)
+
+    suspend fun updateSideBudget(budget: SideBudget) = sideBudgetDao.updateSideBudget(budget)
+
+    suspend fun deleteSideBudget(budget: SideBudget) = sideBudgetDao.deleteSideBudget(budget)
+
+    // ── Side Project operations ───────────────────────────────────────────────
+
+    fun getAllSideProjects(): Flow<List<SideProject>> = sideProjectDao.getAllSideProjects()
+
+    fun getSideProjectById(id: Long): Flow<SideProject?> = sideProjectDao.getSideProjectById(id)
+
+    suspend fun upsertSideProject(project: SideProject): Long = sideProjectDao.upsertSideProject(project)
+
+    suspend fun updateSideProject(project: SideProject) = sideProjectDao.updateSideProject(project)
+
+    suspend fun deleteSideProject(project: SideProject) = sideProjectDao.deleteSideProject(project)
 }

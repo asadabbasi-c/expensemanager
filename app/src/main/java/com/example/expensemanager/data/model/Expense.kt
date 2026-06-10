@@ -21,5 +21,7 @@ data class Expense(
     val bankName: String? = null,
     val merchant: String? = null,
     @ColumnInfo(name = "image_path")
-    val imagePath: String? = null   // absolute path to saved receipt photo
+    val imagePath: String? = null,  // absolute path to saved receipt photo
+    @ColumnInfo(name = "project_id")
+    val projectId: Long? = null     // optional link to a SideProject
 )

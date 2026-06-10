@@ -9,5 +9,4 @@
     <include domain="file"     path="receipts" />
     <exclude domain="database" path="expense_manager_database-wal" />
     <exclude domain="database" path="expense_manager_database-shm" />
-    <exclude domain="cache"    path="." />
 </full-backup-content>
