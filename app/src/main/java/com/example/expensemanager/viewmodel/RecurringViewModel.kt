@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.expensemanager.data.model.Expense
 import com.example.expensemanager.data.model.RecurringExpense
 import com.example.expensemanager.data.repository.ExpenseRepository
+import com.example.expensemanager.data.settings.AppSettings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -16,7 +17,8 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 class RecurringViewModel(
-    private val repository: ExpenseRepository
+    private val repository: ExpenseRepository,
+    private val appSettings: AppSettings? = null
 ) : ViewModel() {
 
     private val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
@@ -75,6 +77,63 @@ class RecurringViewModel(
 
     fun clearGeneratedCount() { _generatedCount.value = 0 }
 
+    /**
+     * Carries recurring incomes forward into each new month, posting them on
+     * the 1st. Runs once per app open; a SharedPreferences cursor
+     * (lastRecurringIncomeMonth) guarantees each month is only processed once,
+     * so a user deleting an auto-posted entry won't see it re-appear.
+     */
+    fun processRecurringIncome() {
+        val settings = appSettings ?: return
+        viewModelScope.launch {
+            val monthSdf = SimpleDateFormat("yyyy-MM", Locale.getDefault())
+            val currentMonth = monthSdf.format(Date())
+
+            fun nextMonth(month: String): String {
+                val parsed = runCatching { monthSdf.parse(month) }.getOrNull() ?: return month
+                val cal = Calendar.getInstance().also { it.time = parsed }
+                cal.add(Calendar.MONTH, 1)
+                return monthSdf.format(cal.time)
+            }
+
+            // First run: start from last month so this month gets posted.
+            val cursor = settings.getLastRecurringIncomeMonth()
+                ?: monthSdf.format(Calendar.getInstance().also { it.add(Calendar.MONTH, -1) }.time)
+
+            if (cursor < currentMonth) {
+                val incomes = repository.getAllIncomeOnce().toMutableList()
+                var month = cursor
+                while (month < currentMonth) {
+                    val next = nextMonth(month)
+                    if (next == month) break
+                    val templates = incomes
+                        .filter { it.recurring && it.month == month }
+                        .distinctBy { it.description.trim().lowercase() }
+                    for (template in templates) {
+                        val alreadyThere = incomes.any {
+                            it.month == next &&
+                                it.description.trim().equals(template.description.trim(), ignoreCase = true)
+                        }
+                        if (!alreadyThere) {
+                            val posted = template.copy(
+                                id      = 0,
+                                date    = "$next-01",
+                                time    = "00:00",
+                                source  = "recurring",
+                                month   = next,
+                                smsHash = null
+                            )
+                            repository.insertIncome(posted)
+                            incomes.add(posted)
+                        }
+                    }
+                    month = next
+                }
+            }
+            settings.setLastRecurringIncomeMonth(currentMonth)
+        }
+    }
+
     fun addRecurring(
         name: String,
         amount: Double,
@@ -126,11 +185,14 @@ class RecurringViewModel(
         return sdf.format(cal.time)
     }
 
-    class Factory(private val repository: ExpenseRepository) : ViewModelProvider.Factory {
+    class Factory(
+        private val repository: ExpenseRepository,
+        private val appSettings: AppSettings? = null
+    ) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(RecurringViewModel::class.java)) {
                 @Suppress("UNCHECKED_CAST")
-                return RecurringViewModel(repository) as T
+                return RecurringViewModel(repository, appSettings) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class")
         }

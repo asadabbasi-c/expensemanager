@@ -39,6 +39,11 @@ class GoalViewModel(
         repository.getTotalIncomeForMonth(month)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
+    /** Distinct recurring income sources across all months (for the free-tier limit). */
+    val recurringSourceCount: StateFlow<Int> = repository.getAllIncome().map { list ->
+        list.filter { it.recurring }.distinctBy { it.description.trim().lowercase() }.size
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
     private val _isSaving = MutableStateFlow(false)
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
 

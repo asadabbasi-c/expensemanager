@@ -24,4 +24,7 @@ interface IncomeDao {
 
     @Query("SELECT COUNT(*) FROM income WHERE sms_hash = :hash")
     suspend fun countByHash(hash: String): Int
+
+    @Query("SELECT * FROM income")
+    suspend fun getAllIncomeOnce(): List<Income>
 }

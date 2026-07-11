@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.expensemanager.data.model.Category
 import com.example.expensemanager.data.model.Expense
+import com.example.expensemanager.data.model.ProjectTypes
 import com.example.expensemanager.data.model.SideProject
 import com.example.expensemanager.data.repository.ExpenseRepository
 import kotlinx.coroutines.flow.*
@@ -63,20 +64,17 @@ class SideProjectViewModel(
         _selectedProjectId.value = id
     }
 
-    fun addProject(name: String, icon: String, budget: Double, color: String, includeInMain: Boolean) {
+    fun addProject(name: String, type: String, budget: Double = 0.0) {
         viewModelScope.launch {
+            val info = ProjectTypes.info(type)
             repository.upsertSideProject(
-                SideProject(name = name, icon = icon, budget = budget, color = color, includeInMain = includeInMain)
+                SideProject(name = name, icon = info.icon, budget = budget, color = info.color, type = info.key)
             )
         }
     }
 
     fun updateProject(project: SideProject) {
         viewModelScope.launch { repository.updateSideProject(project) }
-    }
-
-    fun toggleIncludeInMain(project: SideProject) {
-        viewModelScope.launch { repository.updateSideProject(project.copy(includeInMain = !project.includeInMain)) }
     }
 
     fun deleteProject(project: SideProject) {

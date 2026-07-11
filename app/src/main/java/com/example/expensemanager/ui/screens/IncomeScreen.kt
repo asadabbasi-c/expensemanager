@@ -41,11 +41,19 @@ import java.util.*
 @Composable
 fun IncomeScreen(
     viewModel: GoalViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    proManager: com.example.expensemanager.monetization.ProManager? = null,
+    interstitialAdManager: com.example.expensemanager.monetization.InterstitialAdManager? = null,
+    onUpgrade: () -> Unit = {}
 ) {
     val monthLabel by viewModel.selectedMonthLabel.collectAsStateWithLifecycle()
     val incomeList by viewModel.incomeForMonth.collectAsStateWithLifecycle()
     val totalIncome by viewModel.totalExtraIncomeForMonth.collectAsStateWithLifecycle()
+    val recurringSourceCount by viewModel.recurringSourceCount.collectAsStateWithLifecycle()
+    val isPro by (proManager?.isPro ?: kotlinx.coroutines.flow.MutableStateFlow(false))
+        .collectAsStateWithLifecycle()
+    val activity = LocalContext.current as android.app.Activity
+    var showRecurringProLimit by remember { mutableStateOf(false) }
 
     val currency  = LocalCurrency.current
     val formatter = NumberFormat.getNumberInstance(Locale.getDefault()).apply {
@@ -182,10 +190,40 @@ fun IncomeScreen(
     if (showAddSheet) {
         AddIncomeSheet(
             onSave = { amount, source, date, recurring ->
-                viewModel.addIncomeEntry(amount, source, date, recurring)
-                showAddSheet = false
+                // Free tier: 1 recurring income source; one-time incomes are unlimited
+                if (recurring && !isPro && recurringSourceCount >= 1) {
+                    showAddSheet = false
+                    showRecurringProLimit = true
+                    return@AddIncomeSheet
+                }
+                fun save() {
+                    viewModel.addIncomeEntry(amount, source, date, recurring)
+                    showAddSheet = false
+                }
+                if (isPro || interstitialAdManager == null) {
+                    save()
+                } else {
+                    interstitialAdManager.showAdEveryOtherThenRun(activity, "income_entry") { save() }
+                }
             },
             onDismiss = { showAddSheet = false }
+        )
+    }
+
+    if (showRecurringProLimit) {
+        AlertDialog(
+            onDismissRequest = { showRecurringProLimit = false },
+            containerColor   = Surface,
+            title = { Text("More recurring incomes with Pro", color = TextPrimary) },
+            text  = { Text("Free includes 1 recurring income source (one-time incomes stay unlimited). Upgrade to SmartSpend Pro to add more.", color = TextSecondary) },
+            confirmButton = {
+                TextButton(onClick = { showRecurringProLimit = false; onUpgrade() }) {
+                    Text("Upgrade", color = Brand400, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRecurringProLimit = false }) { Text("Not now", color = TextSecondary) }
+            }
         )
     }
 }

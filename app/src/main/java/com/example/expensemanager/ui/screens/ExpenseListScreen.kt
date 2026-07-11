@@ -159,7 +159,9 @@ fun ExpenseListScreen(
     onNavigateToVoice    : () -> Unit = {},
     onNavigateToRecurring: () -> Unit = {},
     onSaveRecurring      : ((String, Double, Long, String, String, String) -> Unit)? = null,
-    projects             : List<com.example.expensemanager.data.model.SideProject> = emptyList()
+    projects             : List<com.example.expensemanager.data.model.SideProject> = emptyList(),
+    onCreateProject      : ((name: String, type: String, budget: Double) -> Unit)? = null,
+    onUpgrade            : () -> Unit = {}
 ) {
     val expenses   by viewModel.expenses.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
@@ -168,6 +170,7 @@ fun ExpenseListScreen(
     val activity   = LocalContext.current as Activity
 
     val categoryMap = remember(categories) { categories.associateBy { it.id } }
+    val projectMap  = remember(projects) { projects.associateBy { it.id } }
 
     val groupedExpenses = remember(expenses) {
         expenses.groupBy { e ->
@@ -180,8 +183,9 @@ fun ExpenseListScreen(
         val cal = Calendar.getInstance()
         "${cal.get(Calendar.YEAR)}-${String.format("%02d", cal.get(Calendar.MONTH) + 1)}"
     }
+    // Summary counts only main-budget expenses (project-only ones are excluded)
     val thisMonthExpenses = remember(expenses, currentMonth) {
-        expenses.filter { it.date.startsWith(currentMonth) }
+        expenses.filter { it.date.startsWith(currentMonth) && it.includeInMain }
     }
     val thisMonthTotal = remember(thisMonthExpenses) { thisMonthExpenses.sumOf { it.amount } }
     val lastMonthKey = remember {
@@ -190,7 +194,7 @@ fun ExpenseListScreen(
         "${cal.get(Calendar.YEAR)}-${String.format("%02d", cal.get(Calendar.MONTH) + 1)}"
     }
     val lastMonthTotal = remember(expenses, lastMonthKey) {
-        expenses.filter { it.date.startsWith(lastMonthKey) }.sumOf { it.amount }
+        expenses.filter { it.date.startsWith(lastMonthKey) && it.includeInMain }.sumOf { it.amount }
     }
 
     var showAddSheet  by remember { mutableStateOf(false) }
@@ -286,7 +290,8 @@ fun ExpenseListScreen(
                                     expense  = expense,
                                     category = categoryMap[expense.categoryId],
                                     onDelete = { viewModel.deleteExpense(expense) },
-                                    onEdit   = { expenseToEdit = expense }
+                                    onEdit   = { expenseToEdit = expense },
+                                    project  = expense.projectId?.let { projectMap[it] }
                                 )
                             }
                         }
@@ -361,7 +366,17 @@ fun ExpenseListScreen(
                 onScanReceipt   = { showAddSheet = false; onNavigateToReceipt() },
                 onVoice         = { showAddSheet = false; onNavigateToVoice() },
                 onSaveRecurring = onSaveRecurring,
-                projects        = projects
+                projects        = projects,
+                onBeforeSave    = { doSave ->
+                    if (isPro || interstitialAdManager == null) {
+                        doSave()
+                    } else {
+                        interstitialAdManager.showAdEveryOtherThenRun(activity, "expense_entry", doSave)
+                    }
+                },
+                isPro           = isPro,
+                onCreateProject = onCreateProject,
+                onUpgrade       = onUpgrade
             )
         }
     }
@@ -398,7 +413,7 @@ fun ExpenseListScreen(
                     if (isPro || interstitialAdManager == null) {
                         doSave()
                     } else {
-                        interstitialAdManager.showAdThenRun(activity, doSave)
+                        interstitialAdManager.showAdEveryOtherThenRun(activity, "expense_entry", doSave)
                     }
                 }
             )
@@ -508,7 +523,13 @@ fun MonthDivider(month: String, total: Double, count: Int) {
 // ── Expense card ───────────────────────────────────────────────────────────────
 
 @Composable
-fun ExpenseCard(expense: Expense, category: Category?, onDelete: () -> Unit, onEdit: () -> Unit = {}) {
+fun ExpenseCard(
+    expense: Expense,
+    category: Category?,
+    onDelete: () -> Unit,
+    onEdit: () -> Unit = {},
+    project: com.example.expensemanager.data.model.SideProject? = null
+) {
     val formatter = NumberFormat.getNumberInstance(Locale.getDefault()).apply {
         maximumFractionDigits = 0; minimumFractionDigits = 0
     }
@@ -517,6 +538,11 @@ fun ExpenseCard(expense: Expense, category: Category?, onDelete: () -> Unit, onE
         category?.color?.let {
             runCatching { Color(AndroidColor.parseColor(it)) }.getOrDefault(Color(0xFF888888))
         } ?: Color(0xFF888888)
+    }
+    val projectColor = remember(project?.color) {
+        project?.color?.let {
+            runCatching { Color(AndroidColor.parseColor(it)) }.getOrDefault(AccentBlue)
+        } ?: AccentBlue
     }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
@@ -603,6 +629,24 @@ fun ExpenseCard(expense: Expense, category: Category?, onDelete: () -> Unit, onE
                         if (expense.time.isNotBlank()) append(" · ${expense.time}")
                     }
                     Text(dateLabel, fontSize = 11.sp, color = TextMuted, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (project != null) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(projectColor.copy(alpha = 0.12f))
+                                .border(0.5.dp, projectColor.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
+                        ) {
+                            Text(
+                                "${project.icon} ${project.name}" + if (expense.includeInMain) "" else " · only",
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = projectColor,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                     if (expense.source.isNotBlank() && expense.source != "manual") {
                         SourceTag(expense.source)
                     }
@@ -655,7 +699,11 @@ fun NewAddExpenseSheet(
     onScanReceipt   : () -> Unit = {},
     onVoice         : () -> Unit = {},
     onSaveRecurring : ((String, Double, Long, String, String, String) -> Unit)? = null,
-    projects        : List<com.example.expensemanager.data.model.SideProject> = emptyList()
+    projects        : List<com.example.expensemanager.data.model.SideProject> = emptyList(),
+    onBeforeSave    : ((() -> Unit) -> Unit)? = null,
+    isPro           : Boolean = true,
+    onCreateProject : ((name: String, type: String, budget: Double) -> Unit)? = null,
+    onUpgrade       : () -> Unit = {}
 ) {
     var mode              by remember { mutableStateOf("manual") }   // "manual" | "subscription"
     var amountText        by remember { mutableStateOf("") }
@@ -663,12 +711,27 @@ fun NewAddExpenseSheet(
     var description       by remember { mutableStateOf("") }
     var isRecurring       by remember { mutableStateOf(false) }
     var selectedProjectId by remember { mutableStateOf<Long?>(null) }
+    // When a project is selected: false = project-only (default), true = also in main
+    var alsoCountInMain   by remember { mutableStateOf(false) }
     var selectedBrand     by remember { mutableStateOf<SubscriptionBrand?>(null) }
     var saving            by remember { mutableStateOf(false) }
     var saved             by remember { mutableStateOf(false) }
 
+    // Inline project creation
+    var showCreateProject     by remember { mutableStateOf(false) }
+    var showProjectProLimit   by remember { mutableStateOf(false) }
+    var pendingProjectSelect  by remember { mutableStateOf(false) }
+
     LaunchedEffect(categories) {
         if (selectedCatId == null && categories.isNotEmpty()) selectedCatId = categories.first().id
+    }
+
+    LaunchedEffect(projects) {
+        // Auto-select a project that was just created from this sheet
+        if (pendingProjectSelect && projects.isNotEmpty()) {
+            selectedProjectId = projects.maxByOrNull { it.id }?.id
+            pendingProjectSelect = false
+        }
     }
 
     fun pickSubscription(brand: SubscriptionBrand) {
@@ -688,18 +751,24 @@ fun NewAddExpenseSheet(
         val now   = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(java.util.Date())
         val tm    = java.text.SimpleDateFormat("HH:mm", Locale.getDefault()).format(java.util.Date())
         val source = if (isRecurring) "recurring" else "manual"
-        saving = true
-        viewModel.addExpense(
-            com.example.expensemanager.data.model.Expense(
-                amount = amt, categoryId = catId, description = description,
-                date = now, time = tm, source = source, projectId = selectedProjectId
+
+        fun save() {
+            viewModel.addExpense(
+                com.example.expensemanager.data.model.Expense(
+                    amount = amt, categoryId = catId, description = description,
+                    date = now, time = tm, source = source, projectId = selectedProjectId,
+                    includeInMain = selectedProjectId == null || alsoCountInMain
+                )
             )
-        )
-        if (isRecurring && onSaveRecurring != null) {
-            onSaveRecurring(description, amt, catId, description, "monthly", now)
+            if (isRecurring && onSaveRecurring != null) {
+                onSaveRecurring(description, amt, catId, description, "monthly", now)
+            }
+            saved = true
+            onSaved()
         }
-        saved = true
-        onSaved()
+
+        saving = true
+        if (onBeforeSave != null) onBeforeSave { save() } else save()
     }
 
     Column(
@@ -934,9 +1003,9 @@ fun NewAddExpenseSheet(
             }
         }
         // Side project picker
-        if (projects.isNotEmpty()) {
+        if (projects.isNotEmpty() || onCreateProject != null) {
             Spacer(Modifier.height(12.dp))
-            Text("SIDE PROJECT (OPTIONAL)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextMuted, letterSpacing = 0.07.sp)
+            Text("PROJECT (OPTIONAL)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextMuted, letterSpacing = 0.07.sp)
             Spacer(Modifier.height(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(end = 4.dp)) {
                 item {
@@ -967,6 +1036,57 @@ fun NewAddExpenseSheet(
                     ) {
                         Text(project.icon, fontSize = 15.sp)
                         Text(project.name, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = if (isSelected) Brand400 else TextSecondary)
+                    }
+                }
+                if (onCreateProject != null) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(SurfaceEl)
+                                .border(1.5.dp, AccentBlue.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                                .clickable {
+                                    // Free tier: 1 project
+                                    if (isPro || projects.isEmpty()) showCreateProject = true
+                                    else showProjectProLimit = true
+                                }
+                                .padding(horizontal = 12.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text("＋", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AccentBlue)
+                            Text("New Project", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = AccentBlue)
+                        }
+                    }
+                }
+            }
+
+            // Scope: project-only (default) vs also counted in main spending
+            if (selectedProjectId != null) {
+                Spacer(Modifier.height(10.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (alsoCountInMain) Brand400.copy(alpha = 0.07f) else SurfaceEl)
+                        .border(1.dp, if (alsoCountInMain) Brand400 else SurfaceVar, RoundedCornerShape(12.dp))
+                        .clickable { alsoCountInMain = !alsoCountInMain }
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("🧮", fontSize = 16.sp)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Also count in main spending",
+                                fontSize = 13.sp,
+                                color = if (alsoCountInMain) Brand400 else TextSecondary
+                            )
+                            Text(
+                                if (alsoCountInMain) "Counted in project AND monthly budget" else "Project-only — kept out of monthly budget",
+                                fontSize = 10.sp, color = TextMuted
+                            )
+                        }
+                        Switch(checked = alsoCountInMain, onCheckedChange = { alsoCountInMain = it })
                     }
                 }
             }
@@ -1018,6 +1138,36 @@ fun NewAddExpenseSheet(
                 )
             }
         }
+    }
+
+    if (showCreateProject && onCreateProject != null) {
+        // Shared with the Side Projects screen; opens over this sheet, so the
+        // half-filled expense form underneath keeps its state.
+        CreateProjectDialog(
+            onCreate = { name, type, budget ->
+                onCreateProject(name, type, budget)
+                pendingProjectSelect = true
+                showCreateProject = false
+            },
+            onDismiss = { showCreateProject = false }
+        )
+    }
+
+    if (showProjectProLimit) {
+        AlertDialog(
+            onDismissRequest = { showProjectProLimit = false },
+            containerColor   = Surface,
+            title = { Text("Unlimited projects with Pro", color = TextPrimary) },
+            text  = { Text("Free includes 1 project. Upgrade to SmartSpend Pro to create unlimited projects.", color = TextSecondary) },
+            confirmButton = {
+                TextButton(onClick = { showProjectProLimit = false; onUpgrade() }) {
+                    Text("Upgrade", color = Brand400, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showProjectProLimit = false }) { Text("Not now", color = TextSecondary) }
+            }
+        )
     }
 }
 

@@ -35,11 +35,16 @@ import java.util.*
 @Composable
 fun SideBudgetScreen(
     viewModel: SideBudgetViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    proManager: com.example.expensemanager.monetization.ProManager? = null,
+    interstitialAdManager: com.example.expensemanager.monetization.InterstitialAdManager? = null
 ) {
     val summary by viewModel.summary.collectAsStateWithLifecycle()
     val activeBudget by viewModel.activeBudget.collectAsStateWithLifecycle()
     val currency = LocalCurrency.current
+    val isPro by (proManager?.isPro ?: kotlinx.coroutines.flow.MutableStateFlow(false))
+        .collectAsStateWithLifecycle()
+    val activity = LocalContext.current as android.app.Activity
 
     var showSetup by remember { mutableStateOf(false) }
 
@@ -85,8 +90,15 @@ fun SideBudgetScreen(
             initialStart = activeBudget?.startDate,
             initialEnd   = activeBudget?.endDate,
             onSave = { name, total, start, end ->
-                viewModel.saveSideBudget(name, total, start, end)
-                showSetup = false
+                fun save() {
+                    viewModel.saveSideBudget(name, total, start, end)
+                    showSetup = false
+                }
+                if (isPro || interstitialAdManager == null) {
+                    save()
+                } else {
+                    interstitialAdManager.showAdEveryOtherThenRun(activity, "side_budget_entry") { save() }
+                }
             },
             onDismiss = { showSetup = false }
         )

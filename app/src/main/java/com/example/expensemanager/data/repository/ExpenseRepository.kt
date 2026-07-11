@@ -92,6 +92,8 @@ class ExpenseRepository(
     suspend fun incomeExistsForHash(hash: String): Boolean =
         incomeDao.countByHash(hash) > 0
 
+    suspend fun getAllIncomeOnce(): List<Income> = incomeDao.getAllIncomeOnce()
+
     // ── Saving Goal operations ────────────────────────────────────────────────
 
     fun getGoalForMonth(month: String): Flow<SavingGoal?> =

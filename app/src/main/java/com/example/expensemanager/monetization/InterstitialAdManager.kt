@@ -14,7 +14,9 @@ class InterstitialAdManager(private val context: Context) {
     private var interstitialAd: InterstitialAd? = null
 
     private val prefs = context.getSharedPreferences("ad_prefs", Context.MODE_PRIVATE)
-    private val ONE_DAY_MS = 24 * 60 * 60 * 1000L
+
+    // Minimum gap between two interstitials so they never stack back-to-back.
+    private val MIN_INTERVAL_MS = 30 * 1000L
 
     init {
         load()
@@ -38,12 +40,12 @@ class InterstitialAdManager(private val context: Context) {
     }
 
     /**
-     * Shows an interstitial ad at most once per day, then calls [onComplete].
-     * Falls back to [onComplete] immediately if the daily cap is hit or no ad is ready.
+     * Shows an interstitial ad (subject to [MIN_INTERVAL_MS] spacing), then calls [onComplete].
+     * Falls back to [onComplete] immediately if the cooldown hasn't elapsed or no ad is ready.
      */
     fun showAdThenRun(activity: Activity, onComplete: () -> Unit) {
         val lastShown = prefs.getLong("interstitial_last_shown", 0L)
-        if (System.currentTimeMillis() - lastShown < ONE_DAY_MS) {
+        if (System.currentTimeMillis() - lastShown < MIN_INTERVAL_MS) {
             onComplete()
             return
         }
@@ -67,5 +69,21 @@ class InterstitialAdManager(private val context: Context) {
         }
         ad.show(activity)
         interstitialAd = null
+    }
+
+    /**
+     * Tracks a per-feature entry counter and shows an interstitial on every
+     * 2nd entry for that [key], then calls [onComplete].
+     */
+    fun showAdEveryOtherThenRun(activity: Activity, key: String, onComplete: () -> Unit) {
+        val countKey = "entry_count_$key"
+        val count = prefs.getInt(countKey, 0) + 1
+        prefs.edit().putInt(countKey, count).apply()
+
+        if (count % 2 == 0) {
+            showAdThenRun(activity, onComplete)
+        } else {
+            onComplete()
+        }
     }
 }

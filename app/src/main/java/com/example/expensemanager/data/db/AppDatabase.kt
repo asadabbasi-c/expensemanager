@@ -19,7 +19,7 @@ import com.example.expensemanager.data.model.SideProject
         Expense::class, Category::class, Income::class, SavingGoal::class,
         RecurringExpense::class, SideBudget::class, SideProject::class
     ],
-    version = 5,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -78,6 +78,31 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Per-expense main-budget scope replaces the project-level flag.
+                db.execSQL("ALTER TABLE expenses ADD COLUMN include_in_main INTEGER NOT NULL DEFAULT 1")
+                // Backfill project-linked expenses from their project's old flag
+                // so historical behavior intent is preserved.
+                db.execSQL(
+                    """
+                    UPDATE expenses
+                    SET include_in_main = COALESCE(
+                        (SELECT sp.include_in_main FROM side_projects sp WHERE sp.id = expenses.project_id),
+                        1
+                    )
+                    WHERE project_id IS NOT NULL
+                    """.trimIndent()
+                )
+            }
+        }
+
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE side_projects ADD COLUMN type TEXT NOT NULL DEFAULT 'other'")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -85,7 +110,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "expense_manager_database"
                 )
-                    .addMigrations(MIGRATION_4_5)
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

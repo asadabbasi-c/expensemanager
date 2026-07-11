@@ -22,6 +22,13 @@ class AppSettings(private val context: Context) {
     fun setCurrencySymbol(symbol: String) =
         prefs.edit().putString("currency_symbol", symbol).apply()
 
+    /** Last yyyy-MM month for which recurring incomes were carried forward. */
+    fun getLastRecurringIncomeMonth(): String? =
+        prefs.getString("recurring_income_last_month", null)
+
+    fun setLastRecurringIncomeMonth(month: String) =
+        prefs.edit().putString("recurring_income_last_month", month).apply()
+
     private fun detectDefault(): String {
         val tm = runCatching {
             context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager

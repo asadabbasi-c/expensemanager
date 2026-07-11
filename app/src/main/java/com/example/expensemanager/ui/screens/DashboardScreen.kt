@@ -16,6 +16,7 @@ import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,6 +33,7 @@ import com.example.expensemanager.data.model.Expense
 import com.example.expensemanager.monetization.BannerAd
 import com.example.expensemanager.monetization.ProManager
 import com.example.expensemanager.ui.theme.*
+import com.example.expensemanager.viewmodel.AnalyticsViewModel
 import com.example.expensemanager.viewmodel.DashboardViewModel
 import com.example.expensemanager.viewmodel.DashboardViewModel.GoalStatus
 import com.github.mikephil.charting.charts.BarChart
@@ -51,7 +53,10 @@ import java.util.*
 fun DashboardScreen(
     viewModel       : DashboardViewModel,
     onNavigateToGoals : () -> Unit = {},
-    proManager      : ProManager? = null
+    proManager      : ProManager? = null,
+    onNavigateToSideBudget: () -> Unit = {},
+    analyticsViewModel    : AnalyticsViewModel? = null,
+    onNavigateToUpgrade   : () -> Unit = {}
 ) {
     val expensesByCategory by viewModel.expensesByCategory.collectAsStateWithLifecycle()
     val monthlyTotals      by viewModel.monthlyTotals.collectAsStateWithLifecycle()
@@ -67,6 +72,7 @@ fun DashboardScreen(
     val dailyBudget        by viewModel.dailyBudget.collectAsStateWithLifecycle()
     val monthlySavings     by viewModel.monthlySavings.collectAsStateWithLifecycle()
     val totalSavings       by viewModel.totalSavings.collectAsStateWithLifecycle()
+    val emergencyBudget    by viewModel.emergencyBudget.collectAsStateWithLifecycle()
 
     val isPro by (proManager?.isPro ?: remember { kotlinx.coroutines.flow.MutableStateFlow(false) })
         .collectAsStateWithLifecycle()
@@ -108,13 +114,14 @@ fun DashboardScreen(
         }
     }
 
+    var selectedTab by rememberSaveable { mutableStateOf(0) }
+
     Scaffold(containerColor = Bg, bottomBar = { if (!isPro) BannerAd() }) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
                 .background(Bg)
-                .verticalScroll(rememberScrollState())
         ) {
             // ── Custom header ─────────────────────────────────────────────────
             Row(
@@ -141,6 +148,60 @@ fun DashboardScreen(
                 }
             }
 
+            // ── Overview | Analytics tabs ─────────────────────────────────────
+            if (analyticsViewModel != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(SurfaceEl)
+                        .padding(3.dp)
+                ) {
+                    Row {
+                        listOf("Overview", if (isPro) "Analytics" else "Analytics ⭐").forEachIndexed { index, label ->
+                            val isSelected = selectedTab == index
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSelected) Surface else Color.Transparent)
+                                    .border(
+                                        width = if (isSelected) 1.dp else 0.dp,
+                                        color = if (isSelected) SurfaceVar else Color.Transparent,
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable { selectedTab = index }
+                                    .padding(vertical = 7.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    label,
+                                    fontSize   = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color      = if (isSelected) TextPrimary else TextMuted
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
+            if (selectedTab == 1 && analyticsViewModel != null) {
+                if (isPro) {
+                    AnalyticsContent(viewModel = analyticsViewModel)
+                } else {
+                    AnalyticsLockedTab(onUpgrade = onNavigateToUpgrade)
+                }
+                return@Column
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+            ) {
             // ── Horizontal stat cards ─────────────────────────────────────────
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 16.dp),
@@ -187,6 +248,19 @@ fun DashboardScreen(
                 is GoalStatus.OverBudget -> DashCard {
                     GoalProgressSection(status.spent, status.budget, status.percent, dailyBudget,
                         ErrorRed, "Over Budget 🚨", formatter, currency, onNavigateToGoals)
+                }
+            }
+
+            // ── Emergency budget card (runs in parallel while active) ─────────
+            emergencyBudget?.let { emergency ->
+                Spacer(Modifier.height(16.dp))
+                DashCard {
+                    EmergencyBudgetSection(
+                        summary   = emergency,
+                        formatter = formatter,
+                        currency  = currency,
+                        onNavigate = onNavigateToSideBudget
+                    )
                 }
             }
 
@@ -389,6 +463,39 @@ fun DashboardScreen(
             }
 
             Spacer(Modifier.height(24.dp))
+            }
+        }
+    }
+}
+
+/** Compact Pro lock shown inside the dashboard's Analytics tab for free users. */
+@Composable
+private fun AnalyticsLockedTab(onUpgrade: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text("📊", fontSize = 44.sp)
+        Text("Detailed Analytics", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary)
+        Text(
+            "Savings trends, budget adherence, end-of-month forecast, category trends, project goals, subscriptions and more.",
+            fontSize = 13.sp, color = TextSecondary, textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(4.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Brand400)
+                .clickable { onUpgrade() },
+            contentAlignment = Alignment.Center
+        ) {
+            Text("Unlock with Pro →", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0A0A0A))
         }
     }
 }
@@ -495,6 +602,68 @@ fun GoalProgressSection(
             Spacer(Modifier.width(8.dp))
             Text(
                 "Daily allowance: $currency${formatter.format(dailyBudget)}",
+                fontSize = 11.sp,
+                color = TextSecondary,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(14.dp), tint = TextMuted)
+        }
+    }
+}
+
+@Composable
+fun EmergencyBudgetSection(
+    summary  : DashboardViewModel.EmergencyBudgetSummary,
+    formatter: NumberFormat,
+    currency : String,
+    onNavigate: () -> Unit
+) {
+    val color = when {
+        summary.percentUsed > 1.0  -> ErrorRed
+        summary.percentUsed >= 0.8 -> WarnAmber
+        else                       -> AccentBlue
+    }
+    Column {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+            Column {
+                Text("🚨 ${summary.name.ifBlank { "Emergency Budget" }}", fontSize = 11.sp, color = TextMuted)
+                Text(
+                    "$currency${formatter.format(summary.spent)} / $currency${formatter.format(summary.totalAmount)}",
+                    fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = TextPrimary
+                )
+            }
+            Text(
+                "${summary.daysLeft} day${if (summary.daysLeft == 1) "" else "s"} left",
+                fontSize = 12.sp, fontWeight = FontWeight.Bold, color = color,
+                modifier = Modifier.padding(bottom = 2.dp)
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+        LinearProgressIndicator(
+            progress = { summary.percentUsed.toFloat().coerceAtMost(1f) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(CircleShape),
+            color = color,
+            trackColor = color.copy(alpha = 0.1f),
+        )
+
+        Spacer(Modifier.height(12.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(color.copy(alpha = 0.05f))
+                .clickable { onNavigate() }
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Lightbulb, null, Modifier.size(14.dp), tint = color)
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "$currency${formatter.format(summary.dailyAllowance)}/day to stay inside it",
                 fontSize = 11.sp,
                 color = TextSecondary,
                 modifier = Modifier.weight(1f)

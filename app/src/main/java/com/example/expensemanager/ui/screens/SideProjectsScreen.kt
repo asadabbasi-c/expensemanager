@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.expensemanager.data.model.Expense
+import com.example.expensemanager.data.model.ProjectTypes
 import com.example.expensemanager.ui.theme.*
 import com.example.expensemanager.viewmodel.SideProjectViewModel
 import com.github.mikephil.charting.charts.PieChart
@@ -40,18 +41,18 @@ import java.text.NumberFormat
 import java.util.*
 import android.graphics.Color as AndroidColor
 
-private val ProjectColors = listOf("#60A5FA", "#A78BFA", "#FB923C", "#F472B6", "#22D3EE", "#FBBF24", "#4ADE80")
-private val ProjectIcons = listOf("📁", "🚀", "🏠", "🚗", "🎓", "💼", "🎉", "🛠️")
 
 @Composable
 fun SideProjectsScreen(
     viewModel: SideProjectViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    isPro: Boolean = true,
+    onUpgrade: () -> Unit = {}
 ) {
     val selectedProjectId by viewModel.selectedProjectId.collectAsStateWithLifecycle()
 
     if (selectedProjectId == null) {
-        SideProjectsListScreen(viewModel = viewModel, onBack = onBack)
+        SideProjectsListScreen(viewModel = viewModel, onBack = onBack, isPro = isPro, onUpgrade = onUpgrade)
     } else {
         SideProjectDetailScreen(viewModel = viewModel, onBack = { viewModel.selectProject(null) })
     }
@@ -60,7 +61,9 @@ fun SideProjectsScreen(
 @Composable
 private fun SideProjectsListScreen(
     viewModel: SideProjectViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    isPro: Boolean,
+    onUpgrade: () -> Unit
 ) {
     val summaries by viewModel.projectSummaries.collectAsStateWithLifecycle()
     val currency = LocalCurrency.current
@@ -68,6 +71,9 @@ private fun SideProjectsListScreen(
         maximumFractionDigits = 0; minimumFractionDigits = 0
     }
     var showAddSheet by remember { mutableStateOf(false) }
+    var showProLimit by remember { mutableStateOf(false) }
+    // Free tier: 1 project. Pro: unlimited.
+    val requestAdd = { if (isPro || summaries.isEmpty()) showAddSheet = true else showProLimit = true }
 
     Box(modifier = Modifier.fillMaxSize().background(Bg).systemBarsPadding()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -84,7 +90,7 @@ private fun SideProjectsListScreen(
                     modifier = Modifier
                         .clip(CircleShape)
                         .background(Brand400)
-                        .clickable { showAddSheet = true }
+                        .clickable { requestAdd() }
                         .size(36.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -106,7 +112,7 @@ private fun SideProjectsListScreen(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(14.dp))
                                 .background(Brand400)
-                                .clickable { showAddSheet = true }
+                                .clickable { requestAdd() }
                                 .padding(horizontal = 28.dp, vertical = 14.dp)
                         ) {
                             Text("New Project", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0A0A0A))
@@ -124,8 +130,7 @@ private fun SideProjectsListScreen(
                             summary   = summary,
                             currency  = currency,
                             formatter = formatter,
-                            onClick   = { viewModel.selectProject(summary.project.id) },
-                            onToggleInclude = { viewModel.toggleIncludeInMain(summary.project) }
+                            onClick   = { viewModel.selectProject(summary.project.id) }
                         )
                     }
                     item { Spacer(Modifier.height(60.dp)) }
@@ -135,12 +140,29 @@ private fun SideProjectsListScreen(
     }
 
     if (showAddSheet) {
-        AddProjectSheet(
-            onSave = { name, icon, budget, color, include ->
-                viewModel.addProject(name, icon, budget, color, include)
+        CreateProjectDialog(
+            onCreate = { name, type, budget ->
+                viewModel.addProject(name, type, budget)
                 showAddSheet = false
             },
             onDismiss = { showAddSheet = false }
+        )
+    }
+
+    if (showProLimit) {
+        AlertDialog(
+            onDismissRequest = { showProLimit = false },
+            containerColor   = Surface,
+            title = { Text("Unlimited projects with Pro", color = TextPrimary) },
+            text  = { Text("Free includes 1 project. Upgrade to SmartSpend Pro to create unlimited projects.", color = TextSecondary) },
+            confirmButton = {
+                TextButton(onClick = { showProLimit = false; onUpgrade() }) {
+                    Text("Upgrade", color = Brand400, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showProLimit = false }) { Text("Not now", color = TextSecondary) }
+            }
         )
     }
 }
@@ -150,14 +172,13 @@ private fun ProjectCard(
     summary: SideProjectViewModel.ProjectSummary,
     currency: String,
     formatter: NumberFormat,
-    onClick: () -> Unit,
-    onToggleInclude: () -> Unit
+    onClick: () -> Unit
 ) {
     val project = summary.project
     val color = remember(project.color) {
         runCatching { Color(AndroidColor.parseColor(project.color)) }.getOrDefault(AccentBlue)
     }
-    val overBudget = summary.spent > project.budget
+    val overBudget = project.hasBudget && summary.spent > project.budget
 
     Column(
         modifier = Modifier
@@ -181,37 +202,34 @@ private fun ProjectCard(
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(project.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                Text("${summary.expenseCount} expense${if (summary.expenseCount == 1) "" else "s"}", fontSize = 11.sp, color = TextMuted)
+                Text(
+                    "${ProjectTypes.info(project.type).label} • ${summary.expenseCount} expense${if (summary.expenseCount == 1) "" else "s"}",
+                    fontSize = 11.sp, color = TextMuted
+                )
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text("$currency ${formatter.format(summary.spent)}", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = if (overBudget) ErrorRed else TextPrimary)
-                Text("of $currency ${formatter.format(project.budget)}", fontSize = 10.sp, color = TextMuted)
+                Text(
+                    if (project.hasBudget) "of $currency ${formatter.format(project.budget)}" else "no budget",
+                    fontSize = 10.sp, color = TextMuted
+                )
             }
         }
 
-        Spacer(Modifier.height(12.dp))
+        if (project.hasBudget) {
+            Spacer(Modifier.height(12.dp))
 
-        Box(
-            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(SurfaceVar)
-        ) {
             Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(summary.percentUsed.toFloat().coerceIn(0f, 1f))
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(if (overBudget) ErrorRed else color)
-            )
-        }
-
-        Spacer(Modifier.height(10.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth().clickable { onToggleInclude() },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text("Include in main budget", fontSize = 12.sp, color = TextSecondary)
-            Switch(checked = project.includeInMain, onCheckedChange = { onToggleInclude() })
+                modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(SurfaceVar)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(summary.percentUsed.toFloat().coerceIn(0f, 1f))
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (overBudget) ErrorRed else color)
+                )
+            }
         }
     }
 }
@@ -261,7 +279,7 @@ private fun SideProjectDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Summary card
-                val overBudget = summary.spent > project.budget
+                val overBudget = project.hasBudget && summary.spent > project.budget
                 Box(
                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Surface)
                         .border(1.dp, SurfaceVar, RoundedCornerShape(20.dp)).padding(20.dp)
@@ -272,20 +290,29 @@ private fun SideProjectDetailScreen(
                                 Text("Spent", fontSize = 11.sp, color = TextMuted)
                                 Text("$currency ${formatter.format(summary.spent)}", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = if (overBudget) ErrorRed else TextPrimary)
                             }
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text("Remaining", fontSize = 11.sp, color = TextMuted)
-                                Text("$currency ${formatter.format(summary.remaining)}", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Brand400)
+                            if (project.hasBudget) {
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text("Remaining", fontSize = 11.sp, color = TextMuted)
+                                    Text("$currency ${formatter.format(summary.remaining)}", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Brand400)
+                                }
+                            } else {
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(ProjectTypes.info(project.type).label, fontSize = 11.sp, color = TextMuted)
+                                    Text("No budget", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextSecondary, modifier = Modifier.padding(top = 6.dp))
+                                }
                             }
                         }
-                        Spacer(Modifier.height(12.dp))
-                        Box(modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)).background(SurfaceVar)) {
-                            Box(
-                                modifier = Modifier.fillMaxHeight().fillMaxWidth(summary.percentUsed.toFloat().coerceIn(0f, 1f))
-                                    .clip(RoundedCornerShape(5.dp)).background(if (overBudget) ErrorRed else Brand400)
-                            )
+                        if (project.hasBudget) {
+                            Spacer(Modifier.height(12.dp))
+                            Box(modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)).background(SurfaceVar)) {
+                                Box(
+                                    modifier = Modifier.fillMaxHeight().fillMaxWidth(summary.percentUsed.toFloat().coerceIn(0f, 1f))
+                                        .clip(RoundedCornerShape(5.dp)).background(if (overBudget) ErrorRed else Brand400)
+                                )
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Text("of $currency ${formatter.format(project.budget)} budget", fontSize = 11.sp, color = TextMuted)
                         }
-                        Spacer(Modifier.height(8.dp))
-                        Text("of $currency ${formatter.format(project.budget)} budget", fontSize = 11.sp, color = TextMuted)
                     }
                 }
 
@@ -375,110 +402,3 @@ private fun ProjectExpenseRow(expense: Expense, currency: String, formatter: Num
     }
 }
 
-// ── Add project sheet ─────────────────────────────────────────────────────────
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AddProjectSheet(
-    onSave: (name: String, icon: String, budget: Double, color: String, include: Boolean) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val currency = LocalCurrency.current
-
-    var name by remember { mutableStateOf("") }
-    var budgetText by remember { mutableStateOf("") }
-    var icon by remember { mutableStateOf(ProjectIcons.first()) }
-    var color by remember { mutableStateOf(ProjectColors.first()) }
-    var include by remember { mutableStateOf(false) }
-
-    var nameError by remember { mutableStateOf(false) }
-    var budgetError by remember { mutableStateOf(false) }
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Surface
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Text("New Side Project", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it; nameError = false },
-                label = { Text("Project Name (e.g. App Marketing)") },
-                isError = nameError,
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = budgetText,
-                onValueChange = { budgetText = it.filter { c -> c.isDigit() || c == '.' }; budgetError = false },
-                label = { Text("Budget ($currency)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                singleLine = true,
-                isError = budgetError,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Text("Icon", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ProjectIcons.forEach { i ->
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(if (icon == i) Brand400.copy(alpha = 0.2f) else SurfaceEl)
-                            .border(1.dp, if (icon == i) Brand400 else SurfaceVar, CircleShape)
-                            .clickable { icon = i },
-                        contentAlignment = Alignment.Center
-                    ) { Text(i, fontSize = 18.sp) }
-                }
-            }
-
-            Text("Color", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ProjectColors.forEach { c ->
-                    val parsed = remember(c) { Color(AndroidColor.parseColor(c)) }
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(parsed)
-                            .border(2.dp, if (color == c) TextPrimary else Color.Transparent, CircleShape)
-                            .clickable { color = c }
-                    )
-                }
-            }
-
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { include = !include }) {
-                Switch(checked = include, onCheckedChange = { include = it })
-                Spacer(Modifier.width(10.dp))
-                Column {
-                    Text("Include in main budget", fontSize = 14.sp, color = TextPrimary)
-                    Text("Counts toward the dashboard's monthly spending", fontSize = 11.sp, color = TextMuted)
-                }
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(54.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Brand400)
-                    .clickable {
-                        val budget = budgetText.toDoubleOrNull()
-                        nameError = name.isBlank()
-                        budgetError = budget == null || budget <= 0
-                        if (nameError || budgetError) return@clickable
-                        onSave(name, icon, budget!!, color, include)
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Text("Create Project", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0A0A0A))
-            }
-        }
-    }
-}

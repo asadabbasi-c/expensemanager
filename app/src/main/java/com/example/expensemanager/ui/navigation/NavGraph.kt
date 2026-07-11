@@ -42,6 +42,7 @@ import com.example.expensemanager.ui.screens.SideBudgetScreen
 import com.example.expensemanager.ui.screens.SideProjectsScreen
 import com.example.expensemanager.ui.screens.VoiceExpenseScreen
 import com.example.expensemanager.ui.theme.LocalCurrency
+import com.example.expensemanager.viewmodel.AnalyticsViewModel
 import com.example.expensemanager.viewmodel.BadgeViewModel
 import com.example.expensemanager.viewmodel.DashboardViewModel
 import com.example.expensemanager.viewmodel.ExportImportViewModel
@@ -79,6 +80,7 @@ fun NavGraph(
     sideBudgetViewModel  : SideBudgetViewModel,
     sideProjectViewModel : SideProjectViewModel,
     badgeViewModel       : BadgeViewModel,
+    analyticsViewModel   : AnalyticsViewModel,
     proManager           : ProManager,
     billingManager       : BillingManager,
     interstitialAdManager: InterstitialAdManager
@@ -89,6 +91,8 @@ fun NavGraph(
 
     val currency by settingsViewModel.currencySymbol.collectAsStateWithLifecycle()
     val sideProjects by sideProjectViewModel.allProjects.collectAsStateWithLifecycle()
+    val isPro by proManager.isPro.collectAsStateWithLifecycle()
+    val activity = LocalContext.current as Activity
 
     Scaffold(
         bottomBar = {
@@ -132,14 +136,21 @@ fun NavGraph(
                         onSaveRecurring       = { name, amount, catId, desc, freq, startDate ->
                             recurringViewModel.addRecurring(name, amount, catId, desc, freq, startDate, null)
                         },
-                        projects              = sideProjects
+                        projects              = sideProjects,
+                        onCreateProject       = { name, type, budget ->
+                            sideProjectViewModel.addProject(name, type, budget)
+                        },
+                        onUpgrade             = { navController.navigate("upgrade") }
                     )
                 }
                 composable(Screen.Dashboard.route) {
                     DashboardScreen(
                         viewModel         = dashboardViewModel,
                         onNavigateToGoals = { navController.navigate("goals") },
-                        proManager        = proManager
+                        proManager        = proManager,
+                        onNavigateToSideBudget = { navController.navigate("side_budget") },
+                        analyticsViewModel     = analyticsViewModel,
+                        onNavigateToUpgrade    = { navController.navigate("upgrade") }
                     )
                 }
                 composable(Screen.Recurring.route) {
@@ -174,8 +185,15 @@ fun NavGraph(
                         VoiceExpenseScreen(
                             expenseViewModel = expenseViewModel,
                             onSaved = {
-                                navController.navigate(Screen.Expenses.route) {
-                                    popUpTo(Screen.Expenses.route) { inclusive = true }
+                                val navigate: () -> Unit = {
+                                    navController.navigate(Screen.Expenses.route) {
+                                        popUpTo(Screen.Expenses.route) { inclusive = true }
+                                    }
+                                }
+                                if (isPro) {
+                                    navigate()
+                                } else {
+                                    interstitialAdManager.showAdThenRun(activity, navigate)
                                 }
                             },
                             onBack  = { navController.popBackStack() }
@@ -183,45 +201,47 @@ fun NavGraph(
                     }
                 }
                 composable("goals") {
-                    ProGate(
-                        proManager  = proManager,
-                        featureName = "Budget & Goals",
-                        featureIcon = "🎯",
-                        description = "Set monthly saving goals, track your daily spend budget, and get warnings before you overspend.",
-                        onUpgrade   = { navController.navigate("upgrade") }
-                    ) {
-                        GoalSettingScreen(
-                            viewModel          = goalViewModel,
-                            onBack             = { navController.popBackStack() },
-                            onNavigateToIncome = { navController.navigate("income") }
-                        )
-                    }
+                    GoalSettingScreen(
+                        viewModel             = goalViewModel,
+                        onBack                = { navController.popBackStack() },
+                        onNavigateToIncome    = { navController.navigate("income") },
+                        proManager            = proManager,
+                        interstitialAdManager = interstitialAdManager,
+                        onUpgrade             = { navController.navigate("upgrade") }
+                    )
                 }
                 composable("income") {
                     IncomeScreen(
-                        viewModel = goalViewModel,
-                        onBack    = { navController.popBackStack() }
+                        viewModel             = goalViewModel,
+                        onBack                = { navController.popBackStack() },
+                        proManager            = proManager,
+                        interstitialAdManager = interstitialAdManager,
+                        onUpgrade             = { navController.navigate("upgrade") }
                     )
                 }
                 composable("side_budget") {
-                    SideBudgetScreen(
-                        viewModel = sideBudgetViewModel,
-                        onBack    = { navController.popBackStack() }
-                    )
-                }
-                composable("side_projects") {
                     ProGate(
                         proManager  = proManager,
-                        featureName = "Side Projects",
-                        featureIcon = "📁",
-                        description = "Create named budget projects, track their own expenses and analytics, separate from your main budget.",
+                        featureName = "Emergency Budget",
+                        featureIcon = "🚨",
+                        description = "Cap spending for a set window — like $2,000 for the next 20 days — tracked in parallel with your monthly budget.",
                         onUpgrade   = { navController.navigate("upgrade") }
                     ) {
-                        SideProjectsScreen(
-                            viewModel = sideProjectViewModel,
-                            onBack    = { navController.popBackStack() }
+                        SideBudgetScreen(
+                            viewModel             = sideBudgetViewModel,
+                            onBack                = { navController.popBackStack() },
+                            proManager            = proManager,
+                            interstitialAdManager = interstitialAdManager
                         )
                     }
+                }
+                composable("side_projects") {
+                    SideProjectsScreen(
+                        viewModel = sideProjectViewModel,
+                        onBack    = { navController.popBackStack() },
+                        isPro     = isPro,
+                        onUpgrade = { navController.navigate("upgrade") }
+                    )
                 }
                 composable("badges") {
                     ProGate(
@@ -253,8 +273,15 @@ fun NavGraph(
                         receiptViewModel = receiptViewModel,
                         expenseViewModel = expenseViewModel,
                         onSaved = {
-                            navController.navigate(Screen.Expenses.route) {
-                                popUpTo(Screen.Expenses.route) { inclusive = true }
+                            val navigate: () -> Unit = {
+                                navController.navigate(Screen.Expenses.route) {
+                                    popUpTo(Screen.Expenses.route) { inclusive = true }
+                                }
+                            }
+                            if (isPro) {
+                                navigate()
+                            } else {
+                                interstitialAdManager.showAdThenRun(activity, navigate)
                             }
                         },
                         onBack  = { navController.popBackStack() }

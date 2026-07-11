@@ -118,7 +118,6 @@ fun SettingsScreen(
                         iconTint = Brand400,
                         label    = "Budget Settings",
                         value    = "Period, limits & savings",
-                        isPro    = !isPro,
                         onClick  = onNavigateToGoals
                     )
                     HorizontalDivider(

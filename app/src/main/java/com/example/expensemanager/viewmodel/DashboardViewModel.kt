@@ -20,6 +20,11 @@ class DashboardViewModel(
     private val allExpenses: StateFlow<List<Expense>> = repository.getAllExpenses()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** Expenses that count toward main totals — excludes project-only expenses. */
+    private val mainExpenses: StateFlow<List<Expense>> = allExpenses.map { list ->
+        list.filter { it.includeInMain }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private val allCategories: StateFlow<List<Category>> = repository.getAllCategories()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -32,7 +37,7 @@ class DashboardViewModel(
     // ── Existing flows ────────────────────────────────────────────────────────
 
     val expensesByCategory: StateFlow<Map<String, Double>> = combine(
-        allExpenses, allCategories
+        mainExpenses, allCategories
     ) { expenses, categories ->
         val categoryMap = categories.associateBy { it.id }
         expenses
@@ -40,7 +45,7 @@ class DashboardViewModel(
             .mapValues { (_, list) -> list.sumOf { it.amount } }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    val monthlyTotals: StateFlow<Map<String, Double>> = allExpenses.map { expenses ->
+    val monthlyTotals: StateFlow<Map<String, Double>> = mainExpenses.map { expenses ->
         val result   = mutableMapOf<String, Double>()
         val sdf      = SimpleDateFormat("yyyy-MM", Locale.getDefault())
         val labelSdf = SimpleDateFormat("MMM yy", Locale.getDefault())
@@ -56,7 +61,7 @@ class DashboardViewModel(
         result
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    val currentMonthTotal: StateFlow<Double> = allExpenses.map { expenses ->
+    val currentMonthTotal: StateFlow<Double> = mainExpenses.map { expenses ->
         val currentMonth = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
         expenses.filter { it.date.startsWith(currentMonth) }.sumOf { it.amount }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
@@ -67,14 +72,14 @@ class DashboardViewModel(
 
     // ── Phase 2: metrics ──────────────────────────────────────────────────────
 
-    val dailyAverage: StateFlow<Double> = allExpenses.map { expenses ->
+    val dailyAverage: StateFlow<Double> = mainExpenses.map { expenses ->
         val currentMonth = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
         val total = expenses.filter { it.date.startsWith(currentMonth) }.sumOf { it.amount }
         val day   = Calendar.getInstance().get(Calendar.DAY_OF_MONTH).coerceAtLeast(1)
         total / day
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    val highestSpendingDay: StateFlow<Pair<String, Double>?> = allExpenses.map { expenses ->
+    val highestSpendingDay: StateFlow<Pair<String, Double>?> = mainExpenses.map { expenses ->
         val currentMonth = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
         expenses
             .filter { it.date.startsWith(currentMonth) }
@@ -84,7 +89,7 @@ class DashboardViewModel(
             ?.let { it.key to it.value }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    val spendingVelocity: StateFlow<Double> = allExpenses.map { expenses ->
+    val spendingVelocity: StateFlow<Double> = mainExpenses.map { expenses ->
         val currentMonth = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())
         val total        = expenses.filter { it.date.startsWith(currentMonth) }.sumOf { it.amount }
         val cal          = Calendar.getInstance()
@@ -93,7 +98,7 @@ class DashboardViewModel(
         (total / day) * daysInMonth
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    val topMerchants: StateFlow<List<Pair<String, Double>>> = allExpenses.map { expenses ->
+    val topMerchants: StateFlow<List<Pair<String, Double>>> = mainExpenses.map { expenses ->
         expenses
             .filter { !it.merchant.isNullOrBlank() && it.merchant != "Unknown" }
             .groupBy { it.merchant!! }
@@ -109,7 +114,7 @@ class DashboardViewModel(
     val selectedCategory: StateFlow<String?> = _selectedCategory.asStateFlow()
 
     val drillDownExpenses: StateFlow<List<Expense>> = combine(
-        allExpenses, allCategories, _selectedCategory
+        mainExpenses, allCategories, _selectedCategory
     ) { expenses, categories, selected ->
         if (selected == null) emptyList()
         else {
@@ -176,7 +181,7 @@ class DashboardViewModel(
 
     /** Monthly savings = total income (target + extra) − expenses, for last 6 months */
     val monthlySavings: StateFlow<Map<String, Double>> = combine(
-        allExpenses, allIncome, allGoals
+        mainExpenses, allIncome, allGoals
     ) { expenses, incomeList, goals ->
         val result   = mutableMapOf<String, Double>()
         val sdf      = SimpleDateFormat("yyyy-MM", Locale.getDefault())
@@ -199,7 +204,7 @@ class DashboardViewModel(
 
     /** Total savings across all months that have a goal set */
     val totalSavings: StateFlow<Double> = combine(
-        allExpenses, allIncome, allGoals
+        mainExpenses, allIncome, allGoals
     ) { expenses, incomeList, goals ->
         if (goals.isEmpty()) return@combine 0.0
         goals.sumOf { goal ->
@@ -209,6 +214,47 @@ class DashboardViewModel(
             monthIncome - monthExpenses
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    // ── Emergency (side) budget — runs in parallel with the monthly budget ────
+
+    data class EmergencyBudgetSummary(
+        val name: String,
+        val totalAmount: Double,
+        val spent: Double,
+        val remaining: Double,
+        val percentUsed: Double,
+        val daysLeft: Int,
+        val dailyAllowance: Double
+    )
+
+    /** Active emergency budget progress, or null when none is running today. */
+    val emergencyBudget: StateFlow<EmergencyBudgetSummary?> = combine(
+        repository.getActiveSideBudget(), mainExpenses
+    ) { budget, expenses ->
+        if (budget == null) return@combine null
+        val sdf   = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val today = sdf.format(Date())
+        if (today < budget.startDate || today > budget.endDate) return@combine null
+
+        val spent = expenses
+            .filter { it.date >= budget.startDate && it.date <= budget.endDate }
+            .sumOf { it.amount }
+        val remaining = (budget.totalAmount - spent).coerceAtLeast(0.0)
+        val msPerDay  = 86_400_000L
+        val daysLeft  = runCatching {
+            (((sdf.parse(budget.endDate)!!.time - sdf.parse(today)!!.time) / msPerDay).toInt() + 1)
+        }.getOrDefault(1).coerceAtLeast(1)
+
+        EmergencyBudgetSummary(
+            name           = budget.name,
+            totalAmount    = budget.totalAmount,
+            spent          = spent,
+            remaining      = remaining,
+            percentUsed    = if (budget.totalAmount > 0) spent / budget.totalAmount else 0.0,
+            daysLeft       = daysLeft,
+            dailyAllowance = remaining / daysLeft
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     // ── Factory ───────────────────────────────────────────────────────────────
 

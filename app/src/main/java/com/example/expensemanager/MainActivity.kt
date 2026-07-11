@@ -23,6 +23,7 @@ import com.example.expensemanager.viewmodel.RecurringViewModel
 import com.example.expensemanager.viewmodel.SettingsViewModel
 import com.example.expensemanager.viewmodel.SideBudgetViewModel
 import com.example.expensemanager.viewmodel.SideProjectViewModel
+import com.example.expensemanager.viewmodel.AnalyticsViewModel
 import com.example.expensemanager.viewmodel.BadgeViewModel
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -70,7 +71,7 @@ class MainActivity : ComponentActivity() {
                         factory = ReceiptViewModel.Factory(app.repository)
                     )
                     val recurringViewModel: RecurringViewModel = viewModel(
-                        factory = RecurringViewModel.Factory(app.repository)
+                        factory = RecurringViewModel.Factory(app.repository, app.appSettings)
                     )
                     val settingsViewModel: SettingsViewModel = viewModel(
                         factory = SettingsViewModel.Factory(app.appSettings)
@@ -84,10 +85,15 @@ class MainActivity : ComponentActivity() {
                     val badgeViewModel: BadgeViewModel = viewModel(
                         factory = BadgeViewModel.Factory(app.repository)
                     )
+                    val analyticsViewModel: AnalyticsViewModel = viewModel(
+                        factory = AnalyticsViewModel.Factory(app.repository)
+                    )
 
-                    // Auto-generate any overdue recurring expenses on every app open
+                    // Auto-generate any overdue recurring expenses and carry
+                    // recurring incomes into the new month on every app open
                     LaunchedEffect(Unit) {
                         recurringViewModel.processRecurring()
+                        recurringViewModel.processRecurringIncome()
                     }
 
                     NavGraph(
@@ -101,6 +107,7 @@ class MainActivity : ComponentActivity() {
                         sideBudgetViewModel   = sideBudgetViewModel,
                         sideProjectViewModel  = sideProjectViewModel,
                         badgeViewModel        = badgeViewModel,
+                        analyticsViewModel    = analyticsViewModel,
                         proManager            = app.proManager,
                         billingManager        = billingManager,
                         interstitialAdManager = app.interstitialAdManager

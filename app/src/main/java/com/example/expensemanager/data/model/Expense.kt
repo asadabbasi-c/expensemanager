@@ -23,5 +23,10 @@ data class Expense(
     @ColumnInfo(name = "image_path")
     val imagePath: String? = null,  // absolute path to saved receipt photo
     @ColumnInfo(name = "project_id")
-    val projectId: Long? = null     // optional link to a SideProject
+    val projectId: Long? = null,    // optional link to a SideProject
+    // Per-expense scope: true = counts in main monthly totals.
+    // projectId == null → always true (main-only). projectId != null →
+    // true = "both" (main + project), false = project-only.
+    @ColumnInfo(name = "include_in_main", defaultValue = "1")
+    val includeInMain: Boolean = true
 )

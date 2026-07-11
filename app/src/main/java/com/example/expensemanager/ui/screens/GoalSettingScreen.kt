@@ -38,12 +38,17 @@ import java.util.*
 fun GoalSettingScreen(
     viewModel: GoalViewModel,
     onBack   : () -> Unit,
-    onNavigateToIncome: () -> Unit = {}
+    onNavigateToIncome: () -> Unit = {},
+    proManager: com.example.expensemanager.monetization.ProManager? = null,
+    interstitialAdManager: com.example.expensemanager.monetization.InterstitialAdManager? = null,
+    onUpgrade: () -> Unit = {}
 ) {
     val selectedMonth    by viewModel.selectedMonth.collectAsStateWithLifecycle()
     val monthLabel       by viewModel.selectedMonthLabel.collectAsStateWithLifecycle()
     val goal             by viewModel.goalForMonth.collectAsStateWithLifecycle()
     val totalExtraIncome by viewModel.totalExtraIncomeForMonth.collectAsStateWithLifecycle()
+    val isPro by (proManager?.isPro ?: kotlinx.coroutines.flow.MutableStateFlow(false))
+        .collectAsStateWithLifecycle()
 
     val currency  = LocalCurrency.current
     val formatter = NumberFormat.getNumberInstance(Locale.getDefault()).apply {
@@ -265,16 +270,37 @@ fun GoalSettingScreen(
                     }
                 }
 
-                // ── Savings goal slider ──────────────────────────────────────
+                // ── Savings goal slider (Pro) ────────────────────────────────
                 SettingsCard(title = "Savings Goal") {
-                    Text("Save ${savingsPercent.toInt()}% of income", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
-                    Slider(
-                        value = savingsPercent.toFloat(),
-                        onValueChange = { savingsPercent = it.toDouble() },
-                        valueRange = 5f..50f,
-                        colors = SliderDefaults.colors(thumbColor = Brand400, activeTrackColor = Brand400, inactiveTrackColor = SurfaceVar)
-                    )
-                    Text("$currency ${formatter.format(savingsTarget)} per month", fontSize = 12.sp, color = TextMuted)
+                    if (isPro) {
+                        Text("Save ${savingsPercent.toInt()}% of income", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                        Slider(
+                            value = savingsPercent.toFloat(),
+                            onValueChange = { savingsPercent = it.toDouble() },
+                            valueRange = 5f..50f,
+                            colors = SliderDefaults.colors(thumbColor = Brand400, activeTrackColor = Brand400, inactiveTrackColor = SurfaceVar)
+                        )
+                        Text("$currency ${formatter.format(savingsTarget)} per month", fontSize = 12.sp, color = TextMuted)
+                    } else {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Brand400.copy(alpha = 0.07f))
+                                .border(1.dp, Brand400.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                                .clickable { onUpgrade() }
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("🔒", fontSize = 16.sp)
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text("Set a monthly savings goal", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                                Text("Track how much of your income you keep — a Pro feature", fontSize = 11.sp, color = TextMuted)
+                            }
+                            Text("Upgrade", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Brand400)
+                        }
+                    }
                 }
 
                 // ── Live preview ──────────────────────────────────────────────
@@ -308,19 +334,27 @@ fun GoalSettingScreen(
                         .clip(RoundedCornerShape(14.dp))
                         .background(if (canSave) Brand400 else Brand400.copy(alpha = 0.35f))
                         .clickable(enabled = canSave) {
-                            viewModel.saveBudgetSettings(
-                                incomeTarget   = income,
-                                monthlyLimit   = monthlyLimit,
-                                budgetType     = budgetType,
-                                budgetMode     = budgetMode,
-                                budgetAmount   = budgetAmount,
-                                budgetPercent  = budgetPercent,
-                                savingsPercent = savingsPercent,
-                                periodStart    = if (budgetType == "custom") periodStart else null,
-                                periodEnd      = if (budgetType == "custom") periodEnd else null
-                            )
-                            scope.launch {
-                                snackbarHostState.showSnackbar(if (goal != null) "Budget updated!" else "Budget saved!")
+                            fun save() {
+                                viewModel.saveBudgetSettings(
+                                    incomeTarget   = income,
+                                    monthlyLimit   = monthlyLimit,
+                                    budgetType     = budgetType,
+                                    budgetMode     = budgetMode,
+                                    budgetAmount   = budgetAmount,
+                                    budgetPercent  = budgetPercent,
+                                    savingsPercent = savingsPercent,
+                                    periodStart    = if (budgetType == "custom") periodStart else null,
+                                    periodEnd      = if (budgetType == "custom") periodEnd else null
+                                )
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(if (goal != null) "Budget updated!" else "Budget saved!")
+                                }
+                            }
+                            if (isPro || interstitialAdManager == null) {
+                                save()
+                            } else {
+                                val activity = context as android.app.Activity
+                                interstitialAdManager.showAdEveryOtherThenRun(activity, "budget_settings_entry") { save() }
                             }
                         },
                     contentAlignment = Alignment.Center

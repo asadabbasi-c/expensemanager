@@ -82,6 +82,10 @@ fun AddExpenseSheetContent(
     var categoryError            by remember { mutableStateOf(false) }
     var selectedProjectId        by remember { mutableStateOf(existingExpense?.projectId) }
     var projectDropdownExpanded  by remember { mutableStateOf(false) }
+    // When a project is selected: false = project-only (default), true = also in main
+    var alsoCountInMain          by remember {
+        mutableStateOf(existingExpense?.let { it.projectId != null && it.includeInMain } ?: false)
+    }
 
     // Inline category creation state
     var creatingCategory  by remember { mutableStateOf(false) }
@@ -337,6 +341,35 @@ fun AddExpenseSheetContent(
             }
         }
 
+        // Scope: project-only (default) vs also counted in main spending
+        if (selectedProjectId != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { alsoCountInMain = !alsoCountInMain },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked         = alsoCountInMain,
+                    onCheckedChange = { alsoCountInMain = it }
+                )
+                Column {
+                    Text(
+                        "Also count in main spending",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (alsoCountInMain) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        if (alsoCountInMain) "Counted in project AND monthly budget"
+                        else "Project-only — kept out of monthly budget",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
         // ── Date & Time ───────────────────────────────────────────────────────
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -436,7 +469,8 @@ fun AddExpenseSheetContent(
                             address     = location.trim(),
                             date        = date,
                             time        = time,
-                            projectId   = selectedProjectId
+                            projectId   = selectedProjectId,
+                            includeInMain = selectedProjectId == null || alsoCountInMain
                         )
                         val doSave = {
                             viewModel.updateExpense(updatedExpense)
@@ -454,7 +488,8 @@ fun AddExpenseSheetContent(
                                 date        = date,
                                 time        = time,
                                 source      = if (isRecurring) "recurring" else "manual",
-                                projectId   = selectedProjectId
+                                projectId   = selectedProjectId,
+                                includeInMain = selectedProjectId == null || alsoCountInMain
                             )
                         )
                         if (isRecurring && onSaveRecurring != null) {

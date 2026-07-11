@@ -60,7 +60,7 @@ class SideBudgetViewModel(
         val daysLeft   = (daysTotal - daysPassed).coerceIn(0, daysTotal)
 
         val expensesByDate = expenses
-            .filter { it.date >= budget.startDate && it.date <= budget.endDate }
+            .filter { it.includeInMain && it.date >= budget.startDate && it.date <= budget.endDate }
             .groupBy { it.date }
             .mapValues { (_, list) -> list.sumOf { it.amount } }
 
